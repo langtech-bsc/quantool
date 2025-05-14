@@ -1,0 +1,79 @@
+---
+# Optional multilingual support
+{% if metadata.language %}
+language:
+{% for lang in metadata.language %}
+  - "{{ lang }}"
+{% endfor %}
+{% endif %}
+
+# Social sharing thumbnail (optional)
+{% if metadata.thumbnail %}
+thumbnail: "{{ metadata.thumbnail }}"
+{% endif %}
+
+# Search and discovery tags
+tags:
+{% for tag in metadata.tags %}
+  - {{ tag }}
+{% endfor %}
+
+# License information
+license: "{{ metadata.license }}"
+{% if metadata.license == "other" %}
+license_name: "{{ metadata.license_name }}"
+license_link: "{{ metadata.license_link }}"
+{% endif %}
+
+# Training datasets (Hub identifiers)
+datasets:
+{% for ds in metadata.datasets %}
+  - {{ ds }}
+{% endfor %}
+
+# Metrics for filtering
+metrics:
+{% for m in metadata.metrics %}
+  - {{ m }}
+{% endfor %}
+
+# Base model lineage
+base_model: "{{ metadata.base_model }}"
+{% if metadata.base_model_relation %}
+base_model_relation: "{{ metadata.base_model_relation }}"
+{% endif %}
+
+# Library specification
+pipeline_tag: "{{ metadata.pipeline_tag }}"
+library_name: "{{ metadata.library_name }}"
+
+# Versioning support
+{% if metadata.new_version %}
+new_version: "{{ metadata.new_version }}"
+{% endif %}
+
+# Structured evaluation results (PapersWithCode model-index)
+{% if metadata.model_index %}
+model-index:
+{% for entry in metadata.model_index %}
+  - name: "{{ entry.name }}"
+    results:
+{% for res in entry.results %}
+      - task:
+          type: {{ res.task.type }}
+        dataset:
+          name: {{ res.dataset.name }}
+          type: {{ res.dataset.type }}
+        metrics:
+{% for metric in res.metrics %}
+          - name: "{{ metric.name }}"
+            type: "{{ metric.type }}"
+            value: {{ metric.value }}
+{% endfor %}
+        source:
+          name: "{{ res.source.name }}"
+          url: "{{ res.source.url }}"
+{% endfor %}
+{% endfor %}
+{% endif %}
+---

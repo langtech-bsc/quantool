@@ -1,0 +1,63 @@
+[project]
+name="quantool"
+version = "0.0.1"                             # Alpha release
+description = "A unified, plugin-based quantization toolkit for LLMs"
+readme = "README.md"                          # Path to long-form project description
+requires-python = ">=3.8"                     # Minimum Python support
+authors = [
+    { name="Quantool Team", email="" }
+]
+license = { file="LICENSE" }                 # Path to license file
+keywords = [
+    "quantization",
+    "llm",
+    "plugin",
+    "toolkit",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "torch>=2.0.0",
+    "transformers>=4.0.0",
+    "accelerate>=0.16.0",
+    "datasets>=2.0.0",
+    "peft>=0.3.0",
+    "onnxruntime>=1.15.0",
+    "onnx>=1.15.0",
+    "scikit-learn>=1.0",
+    "scipy>=1.7",
+    "numpy>=1.21",
+    "pandas>=1.3",
+]
+
+[tool.setuptools.package.find]
+where = ["src"]
+
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "black>=22.0",
+    "isort>=5.0",
+]
+gptq = ["auto-gptq[triton]"]
+llama-cpp = ["llama-cpp-python"]
+awq = ["awq"]
+
+wandb = ["wandb>=0.16.3", "pandas", "numpy"]wandb = ["wandb"]
+mlflow = ["mlflow"]
+all = [
+    "quantool[qptq]",
+    "quantool[llama-cpp]",
+
+]
+
+
+[project.scripts]
+quantool="quantool.entrypoints.cli:main"

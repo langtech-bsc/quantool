@@ -8,6 +8,7 @@ Quantization pipelines under one library.
 
 - [Overview](#overview)
 - [Features](#features)
+- [Supported Methods](#supported-Methods)
 - [Installation](#installation)
 - [Usage](#usage)
 - [Project Structure](#project-structure)
@@ -25,7 +26,17 @@ Quantization pipelines under one library.
 - Unified CLI for multiple quantization algorithms
 - Plugin-based architecture for extendability
 - Built-in support for logging experiments with MLflow and Weights & Biases
-- Modular core pipeline for preprocessing, calibration, and quantization
+- Modular core pipeline for preprocessing, calibration, quantization and evaluaiton
+
+## Supported Methods
+  - [ ] GGUF
+  - [ ] AWQ
+  - [ ] GPTQ
+  - [ ] GPTQv2
+  - [ ] EXL2
+  - [ ] AQML
+  - [ ] HIGGS
+  - [ ] MLX
 
 ## Installation
 
