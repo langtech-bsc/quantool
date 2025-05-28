@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 @dataclass
-class TemplateMeta:
+class TemplateQuantizationCard:
     """Used by the generic README template."""
     title: str = field(metadata={"help": "Human-readable title for this quantized model"})
     description: str = field(metadata={"help": "Brief description of the method"})
