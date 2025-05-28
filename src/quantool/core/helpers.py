@@ -1,4 +1,3 @@
-
 import logging
 import threading
 import time
@@ -20,7 +19,6 @@ class LoggerFactory:
             else:
                 fmt = fmt or '%(asctime)s %(levelname)s [%(name)s] %(message)s'
                 handler.setFormatter(logging.Formatter(fmt))
-            handler.setFormatter(logging.Formatter(fmt))
             root = logging.getLogger()
             root.setLevel(level)
             root.addHandler(handler)
@@ -80,7 +78,7 @@ from typing import Optional, Union
 import tempfile
 import os
 from huggingface_hub import upload_folder, create_repo, ModelCard, ModelCardData
-from meta import TemplateQuantizationCard
+from .meta import TemplateQuantizationCard
 
 def create_model_card_from_template(template: TemplateQuantizationCard) -> ModelCard:
     """Create a Hugging Face ModelCard from a TemplateQuantizationCard."""
@@ -230,4 +228,3 @@ class ExportMixin:
                 commit_message=commit_message,
                 create_pr=create_pr
             )
-            
