@@ -2,6 +2,9 @@ import logging
 import threading
 import time
 from pythonjsonlogger.jsonlogger import JsonFormatter
+import loguru
+
+
 
 class LoggerFactory:
     _lock = threading.Lock()
@@ -145,31 +148,21 @@ class ExportMixin:
 
     def save_pretrained(
             self,
-            save_directory: Union[str, os.PathLike],
-            push_to_hub: bool = False,
-            **kwargs
+            save_directory: Union[str, os.PathLike]
         ):
         """Save the model and configuration files to a directory.
         
         Args:
             save_directory: Directory where the model/files should be saved
-            push_to_hub: Whether to push the saved files to the Hub
-            **kwargs: Additional arguments passed to push_to_hub method
         """
         os.makedirs(save_directory, exist_ok=True)
-        
+        self.logger.info(f"Saving model files to {save_directory}")
         # Save model specific files - to be implemented by subclasses
         self._save_model_files(save_directory)
         
         # Save model card
         self._save_model_card(save_directory)
         
-        if push_to_hub:
-            return self.push_to_hub(repo_id=kwargs.get("repo_id", None), 
-                                   token=kwargs.get("token", None),
-                                   private=kwargs.get("private", None),
-                                   commit_message=kwargs.get("commit_message", None),
-                                   create_pr=kwargs.get("create_pr", False))
 
     def push_to_hub(
             self,
@@ -209,7 +202,7 @@ class ExportMixin:
         # Create a temporary directory to save files
         with tempfile.TemporaryDirectory() as tmpdir:
             # Save all model files and model card
-            self.save_pretrained(tmpdir, push_to_hub=False)
+            self.save_pretrained(tmpdir)
             
             # Create repo (or get existing)
             repo = create_repo(

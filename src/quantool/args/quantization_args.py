@@ -67,7 +67,14 @@ class QuantizationArguments:
             )
         },
     )
+    # inner config for quantization
+    quantization_config: dict = field(
+        default_factory=dict,
+        metadata={"help": "Quantization specific configuration."},
+    )
 
+
+# not all quantization methods require calibration, refactoring to make it optional
 
 @dataclass
 class CalibrationArguments:
@@ -100,15 +107,7 @@ class ExportArguments:
     """
     Export format and output path.
     """
-    output_format: str = field(
-        default="gguf",
-        metadata={"help": "Export format: gguf, onnx, tensorrt, etc."},
-    )
     output_path: str = field(
         default="quantized_model",
         metadata={"help": "Path (including filename) for the exported model."},
-    )
-    save_compressed: bool = field(
-        default=True,
-        metadata={"help": "Whether to apply sparsity compression on save."},
     )

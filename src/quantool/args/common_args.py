@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union, NoneType
 
 
 @dataclass
@@ -37,50 +37,9 @@ class CommonArguments:
         metadata={"help": "Force overwrite existing output files."}
     )
 
-
-@dataclass  
-class LoggingArguments:
-    """
-    Arguments for experiment logging integrations.
-    """
-    enable_mlflow: bool = field(
-        default=False,
-        metadata={"help": "Enable MLflow logging."}
-    )
-    
-    mlflow_tracking_uri: Optional[str] = field(
+    report_to: Union[NoneType, str, List[str]] = field(
         default=None,
-        metadata={"help": "MLflow tracking server URI."}
-    )
-    
-    mlflow_experiment_name: str = field(
-        default="quantization",
-        metadata={"help": "MLflow experiment name."}
-    )
-    
-    enable_wandb: bool = field(
-        default=False,
-        metadata={"help": "Enable Weights & Biases logging."}
-    )
-    
-    wandb_project: str = field(
-        default="quantization",
-        metadata={"help": "W&B project name."}
-    )
-    
-    wandb_entity: Optional[str] = field(
-        default=None,
-        metadata={"help": "W&B entity (username or team name)."}
-    )
-    
-    run_name: Optional[str] = field(
-        default=None,
-        metadata={"help": "Custom name for the experiment run."}
-    )
-    
-    tags: List[str] = field(
-        default_factory=list,
-        metadata={"help": "Tags to add to the experiment run."}
+        metadata={"help": "Where to report the results (e.g., 'mlflow', 'wandb')."}
     )
 
 

@@ -48,7 +48,7 @@ dev = [
 ]
 gptq = ["auto-gptq[triton]"]
 llama-cpp = ["llama-cpp-python"]
-awq = ["awq"]
+awq = ["llmcompressor"]
 higgs = ["flute-kernel"]
 
 wandb = ["wandb>=0.16.3", "pandas", "numpy"]

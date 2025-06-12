@@ -1,6 +1,7 @@
 import subprocess
 import os
 import shutil
+from utils.command import run_command
 from quantool.core.registry import QuantizerRegistry
 from quantool.core.base import BaseQuantizer
 from quantool.core.meta import TemplateQuantizationCard
@@ -9,7 +10,7 @@ from quantool.core.meta import TemplateQuantizationCard
 @QuantizerRegistry.register
 class GGUF(BaseQuantizer):
     """
-    Quantizer for GGUF (GPT-Generated Unified Format) models using llama.cpp.
+    Quantizer for GGUF models using llama.cpp.
     """
     name = "gguf"
     supported_levels = ["Q2_K", "Q3_K_S", "Q3_K_M", "Q3_K_L", "Q4_0", "Q4_1", "Q4_K_S", "Q4_K_M", "Q5_0", "Q5_1", "Q5_K_S", "Q5_K_M", "Q6_K", "Q8_0", "F16", "F32"]
@@ -24,7 +25,7 @@ class GGUF(BaseQuantizer):
         },
         intended_use="Efficient inference on CPU and GPU with llama.cpp",
         limitations="Requires llama.cpp conversion tools and specific model architectures",
-        citations=["https://github.com/ggerganov/llama.cpp"]
+        citations=["https://github.com/ggml-org/llama.cpp"]
     )
 
     def __init__(self, *args, **kwargs):
@@ -34,20 +35,15 @@ class GGUF(BaseQuantizer):
 
     def _check_dependencies(self):
         """Check if llama.cpp tools are available."""
-        try:
-            # Check for convert.py script
-            result = subprocess.run(["python", "-c", "import llama_cpp"], 
-                                  capture_output=True, text=True)
-            if result.returncode != 0:
-                self.logger.warning("llama-cpp-python not found. Install with: pip install llama-cpp-python")
-        except FileNotFoundError:
-            self.logger.warning("Python not found in PATH")
-
+        raise NotImplementedError(
+            "GGUF quantization requires llama.cpp tools. Please ensure they are installed and available in your PATH."
+        )
+        
     def _convert_to_gguf(self, model_path: str, output_path: str, quantization_type: str):
         """Convert model to GGUF format."""
         try:
             # Try using llama.cpp convert script if available
-            convert_script = os.path.join(self.llama_cpp_path or "", "convert.py")
+            convert_script = os.path.join(self.llama_cpp_path or "", "convert_hf_to_gguf.py")
             
             if os.path.exists(convert_script):
                 # Use llama.cpp convert script
@@ -57,12 +53,13 @@ class GGUF(BaseQuantizer):
                     "--outtype", "f16",
                     "--outfile", f"{output_path}/model.gguf"
                 ]
-                
-                self.logger.info(f"Converting to GGUF: {' '.join(cmd)}")
-                result = subprocess.run(cmd, capture_output=True, text=True)
-                
-                if result.returncode != 0:
-                    raise RuntimeError(f"Conversion failed: {result.stderr}")
+                try:
+                    self.logger.info(f"Converting to GGUF: {' '.join(cmd)}")
+                    result = run_command(self.logger, cmd, cwd=output_path)
+                    self.logger.info(f"Conversion completed!")
+                except SystemExit as e:
+                    if e.code == 127:
+                        raise RuntimeError("Conversion command failed. Ensure llama.cpp tools are installed correctly.")
                 
                 # Quantize the GGUF file
                 quantize_cmd = [
@@ -71,13 +68,15 @@ class GGUF(BaseQuantizer):
                     f"{output_path}/model-{quantization_type.lower()}.gguf",
                     quantization_type
                 ]
-                
-                self.logger.info(f"Quantizing GGUF: {' '.join(quantize_cmd)}")
-                result = subprocess.run(quantize_cmd, capture_output=True, text=True)
-                
-                if result.returncode != 0:
-                    raise RuntimeError(f"Quantization failed: {result.stderr}")
-                    
+
+                try: 
+                    self.logger.info(f"Quantizing GGUF: {' '.join(quantize_cmd)}")
+                    result = run_command(self.logger, quantize_cmd, cwd=output_path)
+                    self.logger.info(f"Quantization completed!")
+                except SystemExit as e:
+                    if e.code == 127:
+                        raise RuntimeError("Quantization command failed. Ensure llama.cpp tools are installed correctly.")
+
                 return f"{output_path}/model-{quantization_type.lower()}.gguf"
                 
             else:
