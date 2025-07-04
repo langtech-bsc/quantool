@@ -59,14 +59,6 @@ class QuantizationArguments:
             )
         },
     )
-    quant_set: List[str] = field(
-        default_factory=list,
-        metadata={
-            "help": (
-                "Allowed quant_set choices; defaults to plugin’s supported_levels."
-            )
-        },
-    )
     # inner config for quantization
     quantization_config: dict = field(
         default_factory=dict,
@@ -81,24 +73,21 @@ class CalibrationArguments:
     """
     Calibration and data loading.
     """
-    calibrator: str = field(
-        default="default",
-        metadata={"help": "Calibration plugin: default or imatrix."},
-    )
-    dataset_name: Optional[str] = field(
+    calibration_data: Optional[str] = field(
         default=None,
-        metadata={"help": "Hugging Face dataset identifier for calibration."},
-    )
-    dataset_split: str = field(
-        default="train",
-        metadata={"help": "Which split of the dataset to load."},
+        metadata={"help": "Path to calibration data file or dataset name."},
     )
     batch_size: int = field(
         default=16, metadata={"help": "Batch size for calibration forward passes."}
     )
-    num_batches: int = field(
-        default=128,
-        metadata={"help": "Number of batches to sample for calibration."},
+
+    num_calibration_samples: int = field(
+        default=512,
+        metadata={"help": "Number of samples to use for calibration."},
+    )
+    max_seq_length: int = field(
+        default=2048,
+        metadata={"help": "Maximum sequence length for calibration data."},
     )
 
 
@@ -110,4 +99,16 @@ class ExportArguments:
     output_path: str = field(
         default="quantized_model",
         metadata={"help": "Path (including filename) for the exported model."},
+    )
+    push_to_hub: bool = field(
+        default=False,
+        metadata={"help": "Push the quantized model to Hugging Face Hub."},
+    )
+    repo_id: Optional[str] = field(
+        default=None,
+        metadata={"help": "Repository ID on Hugging Face Hub (username/repo-name)."},
+    )
+    private: Optional[bool] = field(
+        default=None,
+        metadata={"help": "Whether the repository should be private on the Hub."},
     )

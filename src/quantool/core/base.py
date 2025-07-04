@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from helpers import ExportMixin, LoggerFactory
-from meta import TemplateQuantizationCard
+from quantool.core.helpers import ExportMixin, LoggerFactory
+from quantool.core.meta import TemplateQuantizationCard
 
 
 class BaseQuantizer(ABC, ExportMixin):
@@ -28,7 +28,7 @@ class BaseQuantizer(ABC, ExportMixin):
 
         
 
-from abc import Environment, PackageLoader, select_autoescape
+from jinja2 import Environment, PackageLoader, select_autoescape
 
 class BaseTemplateRenderer:
     """Template Method pattern skeleton."""

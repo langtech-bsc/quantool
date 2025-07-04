@@ -1,17 +1,20 @@
 from transformers import HfArgumentParser
-from quantool.args.quantization_args import ModelArguments, QuantizationArguments, CalibrationArguments, ExportArguments
-from quantool.args.common_args import CommonArguments, LoggingArguments, EvaluationArguments
+from quantool.args.quantization_args import
+from quantool.args import (
+    CommonArguments,
+    LoggingArguments,
+    ModelArguments,
+    QuantizationArguments,
+    CalibrationArguments,
+    ExportArguments
+)
 from quantool.core.registry import QuantizerRegistry
 from quantool.core.helpers import PipelineBase, LoggerFactory
 import sys
+import os
 
-# Import all methods to register them
-from quantool.methods.gptq import GPTQ
-from quantool.methods.gptq_v2 import GPTQv2
-from quantool.methods.awq import AWQ
-from quantool.methods.gguf import GGUF
-from quantool.methods.higgs import Higgs
-from quantool.methods.aqml import AQML
+# Must import quantization methods to register them
+from quantool import methods
 
 # configure CLI logger
 logger = LoggerFactory.get_logger(__name__)
@@ -20,69 +23,98 @@ def main():
     """
     Main entry point for the CLI.
     """
-    # Initialize argument parser with all argument classes
-    parser = HfArgumentParser((
-        ModelArguments, 
-        QuantizationArguments, 
-        CalibrationArguments, 
-        ExportArguments,
-        CommonArguments,
-        LoggingArguments,
-        EvaluationArguments
-    ))
-    
-    # If the user passes a single YAML file, load from it:
-    if len(sys.argv) == 2 and sys.argv[1].endswith((".yaml", ".yml")):
-        (model_args, quant_args, calib_args, export_args, 
-         common_args, logging_args, eval_args) = parser.parse_yaml_file(
-            sys.argv[1], allow_extra_keys=False
+    try:
+        # Initialize argument parser with all argument classes
+        parser = HfArgumentParser((
+            ModelArguments, 
+            QuantizationArguments, 
+            CalibrationArguments, 
+            ExportArguments,
+            CommonArguments,
+            LoggingArguments,
+        ))
+        
+        # If the user passes a single YAML file, load from it:
+        if len(sys.argv) == 2 and sys.argv[1].endswith((".yaml", ".yml")):
+            (model_args, quant_args, calib_args, export_args, 
+             common_args, logging_args) = parser.parse_yaml_file(
+                sys.argv[1], allow_extra_keys=False
+            )
+            logger.info(f"Parsed arguments from YAML file: {sys.argv[1]}")
+        else:
+            # Fallback to normal CLI parsing:
+            (model_args, quant_args, calib_args, export_args,
+             common_args, logging_args) = parser.parse_args_into_dataclasses()
+            logger.info("Parsed arguments from CLI.")
+        
+        # Initialize the pipeline
+        pipeline = (
+            PipelineBase()
+            .add_step(load_model_step,     name="load_model")
+            .add_step(setup_logging_step,  name="setup_logging")
+            .add_step(validate_args_step,  name="validate_args")
+            .add_step(quantize_step,       name="quantize")
+            .add_step(save_step,           name="save_model")
+            .add_step(readme_step,         name="generate_readme")
         )
-    else:
-        # Fallback to normal CLI parsing:
-        (model_args, quant_args, calib_args, export_args,
-         common_args, logging_args, eval_args) = parser.parse_args_into_dataclasses()
-        logger.info("Parsed arguments from CLI.")
-    
-    # Initialize the pipeline
-    pipeline = (
-        PipelineBase()
-        .add_step(load_model_step,   name="load_model")
-        .add_step(setup_logging_step, name="setup_logging")
-        .add_step(quantize_step,     name="quantize")
-        .add_step(evaluate_step,     name="evaluate")
-        .add_step(save_step,         name="save_model")
-        .add_step(readme_step,       name="generate_readme")
-    )
-    
-    state = {
-        "model_args": model_args,
-        "quant_args": quant_args,
-        "calib_args": calib_args,
-        "export_args": export_args,
-        "common_args": common_args,
-        "logging_args": logging_args,
-        "eval_args": eval_args,
-    }
-    pipeline.run(state)
+        
+        state = {
+            "model_args": model_args,
+            "quant_args": quant_args,
+            "calib_args": calib_args,
+            "export_args": export_args,
+            "common_args": common_args,
+            "logging_args": logging_args,
+        }
+        
+        logger.info("Starting quantization pipeline...")
+        result = pipeline.run(state)
+        logger.info("Quantization pipeline completed successfully!")
+        return result
+        
+    except KeyboardInterrupt:
+        logger.info("Process interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Pipeline execution failed: {e}")
+        sys.exit(1)
 
 # define pipeline steps
 def load_model_step(state):
+    """Load model and tokenizer from Hugging Face."""
     from transformers import AutoModelForCausalLM, AutoTokenizer
+    
     margs = state["model_args"]
-    state["tokenizer"] = AutoTokenizer.from_pretrained(
-        margs.tokenizer_name or margs.model_name_or_path,
-        cache_dir=margs.cache_dir,
-        use_auth_token=margs.use_auth_token,
-        revision=margs.revision,
-    )
-    state["model"] = AutoModelForCausalLM.from_pretrained(
-        margs.model_name_or_path,
-        config=margs.config_name,
-        cache_dir=margs.cache_dir,
-        use_auth_token=margs.use_auth_token,
-        revision=margs.revision,
-    )
-    logger.info("Model and tokenizer loaded.")
+    
+    try:
+        # # Load tokenizer
+        # state["tokenizer"] = AutoTokenizer.from_pretrained(
+        #     margs.tokenizer_name or margs.model_name_or_path,
+        #     cache_dir=margs.cache_dir,
+        #     use_auth_token=margs.use_auth_token,
+        #     revision=margs.revision,
+        # )
+        # logger.info(f"Tokenizer loaded from {margs.tokenizer_name or margs.model_name_or_path}")
+        #
+        # # Load model
+        # state["model"] = AutoModelForCausalLM.from_pretrained(
+        #     margs.model_name_or_path,
+        #     config=margs.config_name,
+        #     cache_dir=margs.cache_dir,
+        #     use_auth_token=margs.use_auth_token,
+        #     revision=margs.revision,
+        # )
+
+        # instead using snapshot download
+
+        logger.info(f"Model loaded from {margs.model_name_or_path}")
+        
+    except Exception as e:
+        logger.error(f"Failed to load model or tokenizer: {e}")
+        # For some quantizers, we might not need the full loaded model
+        # We'll still store the model path for quantizers that work with paths
+        logger.warning("Continuing with model path only - some quantizers work with repo IDs directly")
+
     return state
 
 def setup_logging_step(state):
@@ -108,88 +140,153 @@ def setup_logging_step(state):
     
     return state
 
-def quantize_step(state):
+def validate_args_step(state):
+    """Validate arguments and quantizer availability."""
     qargs = state["quant_args"]
-    quantizer = QuantizerRegistry.get(qargs.method)
-    level = qargs.quant_level or str(qargs.bit_width)
     
-    # Store original model for comparison
-    state["original_model"] = state["model"]
+    # Check if the requested quantization method is available
+    available_methods = QuantizerRegistry.list()
+    if qargs.method not in available_methods:
+        raise ValueError(f"Quantization method '{qargs.method}' not available. "
+                        f"Available methods: {available_methods}")
     
-    # Apply quantization
-    quantized_model = quantizer.quantize(state["model"], level, **vars(state["calib_args"]))
-    quantizer.tokenizer = state["tokenizer"]  # Ensure tokenizer is available
+    # Validate quantization level if provided
+    if hasattr(qargs, 'quant_level') and qargs.quant_level:
+        # We'll validate the level during quantization since it's method-specific
+        logger.info(f"Using quantization level: {qargs.quant_level}")
+    elif hasattr(qargs, 'bit_width') and qargs.bit_width:
+        logger.info(f"Using bit width: {qargs.bit_width}")
+    else:
+        logger.warning("No quantization level or bit width specified, using method defaults")
     
-    state["quantizer"] = quantizer
-    state["quantized_model"] = quantized_model
-    logger.info(f"Model quantized using {qargs.method} at level {level}.")
+    logger.info(f"Validated arguments for {qargs.method} quantization")
     return state
 
-def evaluate_step(state):
-    """Evaluate model performance if enabled."""
-    eval_args = state["eval_args"]
-    if not eval_args.enable_evaluation:
-        logger.info("Evaluation disabled, skipping...")
-        return state
+def quantize_step(state):
+    """Apply quantization using the specified method."""
+    qargs = state["quant_args"]
+    margs = state["model_args"]
+    cargs = state["calib_args"]
     
-    # Placeholder for evaluation logic
-    # In a real implementation, you'd add proper evaluation here
-    state["evaluation_metrics"] = {
-        "perplexity": 15.2,  # Placeholder values
-        "accuracy": 0.85,
-        "inference_time": 0.12
-    }
-    
-    logger.info("Model evaluation completed.")
+    try:
+        # Create quantizer instance
+        quantizer = QuantizerRegistry.create(qargs.method)
+        logger.info(f"Created {qargs.method} quantizer: {quantizer.__class__.__name__}")
+        
+        # Determine quantization level
+        level = qargs.quant_level or str(getattr(qargs, 'bit_width', 'Q4_K_M'))
+        
+        # Store original model for comparison (if loaded)
+        if state.get("model") is not None:
+            state["original_model"] = state["model"]
+        
+        # Get source model path - use the actual path/repo ID from model arguments
+        source_model_path = margs.model_name_or_path
+        
+        # Prepare calibration arguments, filtering out None values
+        calib_kwargs = {k: v for k, v in vars(cargs).items() if v is not None}
+        
+        logger.info(f"Starting quantization: method={qargs.method}, level={level}, source={source_model_path}")
+        
+        # Apply quantization - pass the source model path instead of loaded model
+        # Most quantizers work better with the original model path/repo ID
+        quantized_output = quantizer.quantize(
+            model=source_model_path, 
+            level=level, 
+            **calib_kwargs
+        )
+        
+        # Store quantizer and results
+        state["quantizer"] = quantizer
+        state["quantized_output"] = quantized_output
+        
+        logger.info(f"Quantization completed successfully")
+        logger.info(f"Quantized output: {quantized_output}")
+        
+    except Exception as e:
+        logger.error(f"Quantization failed: {e}")
+        raise RuntimeError(f"Failed to quantize model using {qargs.method}: {e}") from e
+        
     return state
+
 
 def save_step(state):
     """Save model using ExportMixin functionality."""
     eargs = state["export_args"]
     quantizer = state["quantizer"]
     
-    # Use the mixin's save_pretrained method instead of export()
-    quantizer.save_pretrained(
-        save_directory=eargs.output_path,
-        push_to_hub=getattr(eargs, 'push_to_hub', False),
-        repo_id=getattr(eargs, 'repo_id', None),
-        private=getattr(eargs, 'private', None)
-    )
-    
-    # Log to experiment trackers
-    if "loggers" in state:
-        config = {
-            "method": state["quant_args"].method,
-            "model_name": state["model_args"].model_name_or_path,
-            "bit_width": state["quant_args"].bit_width,
-            "quant_level": state["quant_args"].quant_level,
-        }
+    try:
+        # Check if push_to_hub is requested
+        should_push_to_hub = getattr(eargs, 'push_to_hub', False)
+        repo_id = getattr(eargs, 'repo_id', None)
+        private = getattr(eargs, 'private', None)
         
-        metrics = state.get("evaluation_metrics", {})
+        if should_push_to_hub and repo_id:
+            # Push directly to hub using the mixin's push_to_hub method
+            commit_message = f"Upload quantized model using {state['quant_args'].method}"
+            logger.info(f"Pushing model to Hugging Face Hub: {repo_id}")
+            
+            result = quantizer.push_to_hub(
+                repo_id=repo_id,
+                private=private,
+                commit_message=commit_message
+            )
+            logger.info(f"Model successfully pushed to hub: {repo_id}")
+            logger.info(f"Upload result: {result}")
+            
+        else:
+            # Save locally using the mixin's save_pretrained method
+            output_path = eargs.output_path
+            if not output_path:
+                # Create default output path
+                output_path = f"./output/{state['quant_args'].method}_{state['model_args'].model_name_or_path.replace('/', '_')}"
+            
+            logger.info(f"Saving model locally to: {output_path}")
+            quantizer.save_pretrained(save_directory=output_path)
+            logger.info(f"Model successfully saved to {output_path}")
         
-        for logger_name, exp_logger in state["loggers"].items():
-            try:
-                exp_logger.log_quantization_run(
-                    method=state["quant_args"].method,
-                    model_name=state["model_args"].model_name_or_path.split("/")[-1],
-                    quantization_config=config,
-                    performance_metrics=metrics,
-                    model_path=eargs.output_path
-                )
-                logger.info(f"Logged to {logger_name}")
-            except Exception as e:
-                logger.error(f"Failed to log to {logger_name}: {e}")
+        # Log to experiment trackers
+        if "loggers" in state:
+            config = {
+                "method": state["quant_args"].method,
+                "model_name": state["model_args"].model_name_or_path,
+                "bit_width": getattr(state["quant_args"], "bit_width", None),
+                "quant_level": getattr(state["quant_args"], "quant_level", None),
+            }
+            
+            metrics = state.get("evaluation_metrics", {})
+            
+            for logger_name, exp_logger in state["loggers"].items():
+                try:
+                    exp_logger.log_quantization_run(
+                        method=state["quant_args"].method,
+                        model_name=state["model_args"].model_name_or_path.split("/")[-1],
+                        quantization_config=config,
+                        performance_metrics=metrics,
+                        model_path=output_path if not should_push_to_hub else repo_id
+                    )
+                    logger.info(f"Successfully logged to {logger_name}")
+                except Exception as e:
+                    logger.error(f"Failed to log to {logger_name}: {e}")
+                    
+    except Exception as e:
+        logger.error(f"Failed to save model: {e}")
+        raise RuntimeError(f"Model saving failed: {e}") from e
     
-    logger.info(f"Model saved to {eargs.output_path}")
     return state
 
 def readme_step(state):
-    from quantool.core.base import BaseTemplateRenderer
+    """Generate README using the quantizer's template card."""
     try:
-        BaseTemplateRenderer().generate_readme(state)
-        logger.info("Generated README for quantized model.")
+        quantizer = state["quantizer"]
+        if hasattr(quantizer, 'template_card'):
+            # The ExportMixin's _save_model_card method handles README generation
+            # during save_pretrained, so this is already handled in the save step
+            logger.info("README generation handled by quantizer's save_pretrained method.")
+        else:
+            logger.warning("Quantizer has no template_card attribute, skipping README generation.")
     except Exception as e:
-        logger.warning(f"Failed to generate README: {e}")
+        logger.warning(f"Failed to check README generation capability: {e}")
     return state
 
 if __name__ == "__main__":

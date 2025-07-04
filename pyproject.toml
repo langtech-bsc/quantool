@@ -3,11 +3,11 @@ name="quantool"
 version = "0.0.1"                             # Alpha release
 description = "A unified, plugin-based quantization toolkit for LLMs"
 readme = "README.md"                          # Path to long-form project description
-requires-python = ">=3.8"                     # Minimum Python support
+requires-python = ">=3.8,<3.12"              # Minimum Python support
 authors = [
-    { name="Quantool Team", email="" }
+    { name="Quantool Team", email="igor.kuzmin@bsc.es" }
 ]
-license = { file="LICENSE" }                 # Path to license file
+#license = { file="LICENSE" }                 # Path to license file
 keywords = [
     "quantization",
     "llm",
@@ -20,7 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.11"
 ]
 dependencies = [
     "torch>=2.0.0",
@@ -36,30 +36,32 @@ dependencies = [
     "pandas>=1.3",
 ]
 
-[tool.setuptools.package.find]
-where = ["src"]
-
-
 [project.optional-dependencies]
 dev = [
     "pytest>=6.0",
     "black>=22.0",
     "isort>=5.0",
 ]
-gptq = ["auto-gptq[triton]"]
-llama-cpp = ["llama-cpp-python"]
+#gptq = ["auto-gptq[triton]"]
+llama-cpp = [
+  "llama-cpp-scripts @ git+https://github.com/ggml-org/llama.cpp.git@master#egg=llama-cpp-scripts"
+]
 awq = ["llmcompressor"]
-higgs = ["flute-kernel"]
+#higgs = ["flute-kernel"]
 
 wandb = ["wandb>=0.16.3", "pandas", "numpy"]
 mlflow = ["mlflow"]
 all = [
-    "quantool[qptq]",
+#    "quantool[qptq]",
     "quantool[llama-cpp]",
-    "quantool[awq]",
-    "quantool[higgs]",
+#    "quantool[awq]",
+#    "quantool[higgs]",
 ]
 
 
 [project.scripts]
 quantool="quantool.entrypoints.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["quantool*"]
