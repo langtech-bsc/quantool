@@ -36,7 +36,9 @@ class LoggerFactory:
                     sys.stderr,
                     format=json_serializer,
                     level=level,
-                    serialize=False
+                    serialize=False,
+                    backtrace=True,
+                    diagnose=True
                 )
             else:
                 # Include function name and line number in log output
@@ -44,7 +46,9 @@ class LoggerFactory:
                 logger.add(
                     sys.stderr,
                     format=fmt,
-                    level=level
+                    level=level,
+                    backtrace=True,
+                    diagnose=True
                 )
 
             cls._configured = True

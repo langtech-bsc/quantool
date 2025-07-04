@@ -239,29 +239,29 @@ def save_step(state):
             quantizer.save_pretrained(save_directory=output_path)
             logger.info(f"Model successfully saved to {output_path}")
         
-        # Log to experiment trackers
-        if "loggers" in state:
-            config = {
-                "method": state["quant_args"].method,
-                "model_name": state["model_args"].model_id,
-                # "bit_width": getattr(state["quant_args"], "bit_width", None),
-                "quant_level": getattr(state["quant_args"], "quant_level", None),
-            }
+        # # Log to experiment trackers
+        # if "loggers" in state:
+        #     config = {
+        #         "method": state["quant_args"].method,
+        #         "model_name": state["model_args"].model_id,
+        #         # "bit_width": getattr(state["quant_args"], "bit_width", None),
+        #         "quant_level": getattr(state["quant_args"], "quant_level", None),
+        #     }
             
-            metrics = state.get("evaluation_metrics", {})
+        #     metrics = state.get("evaluation_metrics", {})
             
-            for logger_name, exp_logger in state["loggers"].items():
-                try:
-                    exp_logger.log_quantization_run(
-                        method=state["quant_args"].method,
-                        model_name=state["model_args"].model_name_or_path.split("/")[-1],
-                        quantization_config=config,
-                        performance_metrics=metrics,
-                        model_path=output_path if not should_push_to_hub else repo_id
-                    )
-                    logger.info(f"Successfully logged to {logger_name}")
-                except Exception as e:
-                    logger.error(f"Failed to log to {logger_name}: {e}")
+        #     for logger_name, exp_logger in state["loggers"].items():
+        #         try:
+        #             exp_logger.log_quantization_run(
+        #                 method=state["quant_args"].method,
+        #                 model_name=state["model_args"].model_name_or_path.split("/")[-1],
+        #                 quantization_config=config,
+        #                 performance_metrics=metrics,
+        #                 model_path=output_path if not should_push_to_hub else repo_id
+        #             )
+        #             logger.info(f"Successfully logged to {logger_name}")
+        #         except Exception as e:
+        #             logger.error(f"Failed to log to {logger_name}: {e}")
                     
     except Exception as e:
         logger.error(f"Failed to save model: {e}")

@@ -187,9 +187,11 @@ class GGUF(BaseQuantizer):
 
     def _save_model_files(self, save_directory: Union[str, Path]):
         if hasattr(self, "last_gguf"):
+            self.logger.info(f"Saving last GGUF file: {self.last_gguf}")
             shutil.copy(self.last_gguf, save_directory)
         else:
             # Fall back to default quantization
+            self.logger.warning("No GGUF file found, using default quantization method.")
             self.quantize(self.source_model, QuantType(self.template_card.hyperparameters["quantization_type"]),
                           save_directory)
 
