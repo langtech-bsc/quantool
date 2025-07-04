@@ -23,25 +23,7 @@ class CommonArguments:
     )
 
 
-@dataclass
-class EvaluationArguments:
-    """
-    Arguments for model evaluation.
-    """
-    enable_evaluation: bool = field(
-        default=True,
-        metadata={"help": "Enable model evaluation after quantization."}
-    )
 
-    eval_dataset: Optional[str] = field(
-        default=None,
-        metadata={"help": "Dataset to use for evaluation."}
-    )
-
-    metrics: List[str] = field(
-        default_factory=lambda: ["perplexity"],
-        metadata={"help": "Metrics to compute during evaluation."}
-    )
 
 @dataclass
 class LoggingArguments:

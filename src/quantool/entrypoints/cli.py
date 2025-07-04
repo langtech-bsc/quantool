@@ -1,15 +1,17 @@
+from accelerate.commands.config.config_args import cache_dir
 from transformers import HfArgumentParser
-from quantool.args.quantization_args import
 from quantool.args import (
     CommonArguments,
     LoggingArguments,
     ModelArguments,
     QuantizationArguments,
-    CalibrationArguments,
+    # CalibrationArguments,
+    EvaluationArguments,
     ExportArguments
 )
 from quantool.core.registry import QuantizerRegistry
 from quantool.core.helpers import PipelineBase, LoggerFactory
+from quantool.utils import load_model
 import sys
 import os
 
@@ -28,7 +30,8 @@ def main():
         parser = HfArgumentParser((
             ModelArguments, 
             QuantizationArguments, 
-            CalibrationArguments, 
+            # CalibrationArguments, 
+            EvaluationArguments,
             ExportArguments,
             CommonArguments,
             LoggingArguments,
@@ -43,8 +46,13 @@ def main():
             logger.info(f"Parsed arguments from YAML file: {sys.argv[1]}")
         else:
             # Fallback to normal CLI parsing:
-            (model_args, quant_args, calib_args, export_args,
-             common_args, logging_args) = parser.parse_args_into_dataclasses()
+            (model_args, 
+            quant_args, 
+            #  calib_args,
+            evaluation_args, 
+            export_args,
+            common_args, 
+            logging_args) = parser.parse_args_into_dataclasses()
             logger.info("Parsed arguments from CLI.")
         
         # Initialize the pipeline
@@ -61,7 +69,7 @@ def main():
         state = {
             "model_args": model_args,
             "quant_args": quant_args,
-            "calib_args": calib_args,
+            # "calib_args": calib_args,
             "export_args": export_args,
             "common_args": common_args,
             "logging_args": logging_args,
@@ -82,38 +90,18 @@ def main():
 # define pipeline steps
 def load_model_step(state):
     """Load model and tokenizer from Hugging Face."""
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    
+
     margs = state["model_args"]
     
     try:
-        # # Load tokenizer
-        # state["tokenizer"] = AutoTokenizer.from_pretrained(
-        #     margs.tokenizer_name or margs.model_name_or_path,
-        #     cache_dir=margs.cache_dir,
-        #     use_auth_token=margs.use_auth_token,
-        #     revision=margs.revision,
-        # )
-        # logger.info(f"Tokenizer loaded from {margs.tokenizer_name or margs.model_name_or_path}")
-        #
-        # # Load model
-        # state["model"] = AutoModelForCausalLM.from_pretrained(
-        #     margs.model_name_or_path,
-        #     config=margs.config_name,
-        #     cache_dir=margs.cache_dir,
-        #     use_auth_token=margs.use_auth_token,
-        #     revision=margs.revision,
-        # )
-
-        # instead using snapshot download
-
-        logger.info(f"Model loaded from {margs.model_name_or_path}")
+        # Load model
+        model_path = load_model(margs.model_id, revision = margs.revision, cache_dir = margs.cache_dir)
+        state["model_path"] = model_path
+        logger.info(f"Model downloaded successfully from {margs.model_id} to {model_path}")
         
     except Exception as e:
-        logger.error(f"Failed to load model or tokenizer: {e}")
-        # For some quantizers, we might not need the full loaded model
-        # We'll still store the model path for quantizers that work with paths
-        logger.warning("Continuing with model path only - some quantizers work with repo IDs directly")
+        logger.error(f"Failed to load model: {e}")
+        raise RuntimeError(f"Model loading failed: {e}") from e
 
     return state
 
@@ -154,8 +142,8 @@ def validate_args_step(state):
     if hasattr(qargs, 'quant_level') and qargs.quant_level:
         # We'll validate the level during quantization since it's method-specific
         logger.info(f"Using quantization level: {qargs.quant_level}")
-    elif hasattr(qargs, 'bit_width') and qargs.bit_width:
-        logger.info(f"Using bit width: {qargs.bit_width}")
+    # elif hasattr(qargs, 'bit_width') and qargs.bit_width:
+    #     logger.info(f"Using bit width: {qargs.bit_width}")
     else:
         logger.warning("No quantization level or bit width specified, using method defaults")
     
@@ -166,23 +154,24 @@ def quantize_step(state):
     """Apply quantization using the specified method."""
     qargs = state["quant_args"]
     margs = state["model_args"]
+    # Get source model path - use the actual path/repo ID from model arguments
+    source_model_path = state.get("model_path", margs.model_id)
     cargs = state["calib_args"]
     
     try:
         # Create quantizer instance
-        quantizer = QuantizerRegistry.create(qargs.method)
+        quantizer = QuantizerRegistry.create(qargs.method, 
+                                             **qargs.quantization_config)
         logger.info(f"Created {qargs.method} quantizer: {quantizer.__class__.__name__}")
         
         # Determine quantization level
-        level = qargs.quant_level or str(getattr(qargs, 'bit_width', 'Q4_K_M'))
+        level = qargs.quant_level #or str(getattr(qargs, 'bit_width', 'Q4_K_M'))
         
         # Store original model for comparison (if loaded)
         if state.get("model") is not None:
             state["original_model"] = state["model"]
         
-        # Get source model path - use the actual path/repo ID from model arguments
-        source_model_path = margs.model_name_or_path
-        
+
         # Prepare calibration arguments, filtering out None values
         calib_kwargs = {k: v for k, v in vars(cargs).items() if v is not None}
         
@@ -239,7 +228,7 @@ def save_step(state):
             output_path = eargs.output_path
             if not output_path:
                 # Create default output path
-                output_path = f"./output/{state['quant_args'].method}_{state['model_args'].model_name_or_path.replace('/', '_')}"
+                output_path = f"./output/{state['quant_args'].method}_{state['model_args'].model_id.replace('/', '_')}" # TODO: Use a more robust path handling
             
             logger.info(f"Saving model locally to: {output_path}")
             quantizer.save_pretrained(save_directory=output_path)
@@ -249,8 +238,8 @@ def save_step(state):
         if "loggers" in state:
             config = {
                 "method": state["quant_args"].method,
-                "model_name": state["model_args"].model_name_or_path,
-                "bit_width": getattr(state["quant_args"], "bit_width", None),
+                "model_name": state["model_args"].model_id,
+                # "bit_width": getattr(state["quant_args"], "bit_width", None),
                 "quant_level": getattr(state["quant_args"], "quant_level", None),
             }
             

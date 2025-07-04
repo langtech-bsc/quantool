@@ -1,9 +1,8 @@
-import logging
 import threading
 import time
-from pythonjsonlogger.jsonlogger import JsonFormatter
-import loguru
-
+from loguru import logger
+import sys
+import json
 
 
 class LoggerFactory:
@@ -11,27 +10,52 @@ class LoggerFactory:
     _configured = False
 
     @classmethod
-    def configure(cls, level=logging.INFO, fmt=None, json=False):
-        """Configure root logger once."""
+    def configure(cls, level="INFO", fmt=None, json_format=False):
+        """Configure loguru logger once with optional JSON formatting."""
         with cls._lock:
             if cls._configured:
                 return
-            handler = logging.StreamHandler()
-            if json:
-                handler.setFormatter(JsonFormatter(fmt))
+
+            # Remove default handler
+            logger.remove()
+
+            if json_format:
+                # JSON serializer using standard json module
+                def json_serializer(record):
+                    return __import__('json').dumps({
+                        "timestamp": record["time"].isoformat(),
+                        "level": record["level"].name,
+                        "name": record["name"],
+                        "message": record["message"],
+                        "module": record["module"],
+                        "function": record["function"],
+                        "line": record["line"]
+                    }) + "\n"
+
+                logger.add(
+                    sys.stderr,
+                    format=json_serializer,
+                    level=level,
+                    serialize=False
+                )
             else:
-                fmt = fmt or '%(asctime)s %(levelname)s [%(name)s] %(message)s'
-                handler.setFormatter(logging.Formatter(fmt))
-            root = logging.getLogger()
-            root.setLevel(level)
-            root.addHandler(handler)
+                fmt = fmt or "{time:YYYY-MM-DD HH:mm:ss.SSS} {level} [{name}] {message}"
+                logger.add(
+                    sys.stderr,
+                    format=fmt,
+                    level=level
+                )
+
             cls._configured = True
 
     @classmethod
     def get_logger(cls, name=None):
         """Get a module-level logger after ensuring configuration."""
         cls.configure()
-        return logging.getLogger(name)
+        if name:
+            return logger.bind(name=name)
+        return logger
+
 
 class MetricRecorder:
     """Context manager for recording metrics."""

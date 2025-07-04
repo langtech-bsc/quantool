@@ -64,6 +64,7 @@ class GGUF(BaseQuantizer):
     ) -> None:
         super().__init__(*args, **kwargs)
         self.llama_cpp_path = Path(llama_cpp_path) if llama_cpp_path else None
+        # TODO: add optional path for executable
         self.use_module_import = False  # Flag to track if we should use module import
         self._check_dependencies()
 
@@ -193,16 +194,16 @@ class GGUF(BaseQuantizer):
                           save_directory)
 
 
-# if __name__ == "__main__":
-#     from huggingface_hub import snapshot_download
+if __name__ == "__main__":
+    from huggingface_hub import snapshot_download
 
-#     # Download the full model snapshot into a local dir
-#     local_folder = snapshot_download(
-#         repo_id="amd/AMD-Llama-135m",
-#         cache_dir=".",
-#         resume_download=True,  # resume if interrupted
-#     )
-#     print(f"Downloaded to {local_folder}")
+    # Download the full model snapshot into a local dir
+    local_folder = snapshot_download(
+        repo_id="bert-base-cased", #"amd/AMD-Llama-135m",
+        cache_dir=".",
+        # resume_download=True,  # resume if interrupted
+    )
+    print(f"Downloaded to {local_folder}")
 #     quantizer = QuantizerRegistry.create("gguf")
 #     quantizer.quantize(local_folder, level=QuantType.Q6_K, output_dir="output/gguf")
 #     print("Quantization complete.")

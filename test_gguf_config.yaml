@@ -1,0 +1,28 @@
+model_id: "amd/AMD-Llama-135m"
+tokenizer_name: null
+cache_dir: null
+use_auth_token: false
+revision: null
+
+method: "gguf"
+quant_level: "Q4_K_M"
+# quantization_config is dictionary with quantization parameters
+quantization_config:
+  llama_cpp_path: null
+
+output_path: "./output/test_gguf"
+push_to_hub: false
+repo_id: null
+private: null
+
+seed: 42
+verbose: true
+
+report_to: null
+log_level: "INFO"
+save_logs: true
+log_dir: "./logs"
+
+enable_evaluation: false
+eval_dataset: null
+metrics: ["perplexity"]
