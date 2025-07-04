@@ -39,7 +39,8 @@ class LoggerFactory:
                     serialize=False
                 )
             else:
-                fmt = fmt or "{time:YYYY-MM-DD HH:mm:ss.SSS} {level} [{name}] {message}"
+                # Include function name and line number in log output
+                fmt = fmt or "{time:YYYY-MM-DD HH:mm:ss.SSS} {level} [{name}:{function}:{line}] {message}"
                 logger.add(
                     sys.stderr,
                     format=fmt,

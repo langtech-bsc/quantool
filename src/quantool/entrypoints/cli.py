@@ -39,8 +39,12 @@ def main():
         
         # If the user passes a single YAML file, load from it:
         if len(sys.argv) == 2 and sys.argv[1].endswith((".yaml", ".yml")):
-            (model_args, quant_args, calib_args, export_args, 
-             common_args, logging_args) = parser.parse_yaml_file(
+            (model_args, 
+            quant_args, 
+            #  calib_args,
+            evaluation_args,
+            export_args, 
+            common_args, logging_args) = parser.parse_yaml_file(
                 sys.argv[1], allow_extra_keys=False
             )
             logger.info(f"Parsed arguments from YAML file: {sys.argv[1]}")
@@ -110,21 +114,21 @@ def setup_logging_step(state):
     logging_args = state["logging_args"]
     state["loggers"] = {}
     
-    if logging_args.enable_mlflow:
-        from quantool.loggers.mlflow import QuantizationMLflowLogger
-        state["loggers"]["mlflow"] = QuantizationMLflowLogger(
-            experiment_name=logging_args.mlflow_experiment_name,
-            tracking_uri=logging_args.mlflow_tracking_uri
-        )
-        logger.info("MLflow logging enabled")
+    # if logging_args.enable_mlflow:
+    #     from quantool.loggers.mlflow import QuantizationMLflowLogger
+    #     state["loggers"]["mlflow"] = QuantizationMLflowLogger(
+    #         experiment_name=logging_args.mlflow_experiment_name,
+    #         tracking_uri=logging_args.mlflow_tracking_uri
+    #     )
+    #     logger.info("MLflow logging enabled")
     
-    if logging_args.enable_wandb:
-        from quantool.loggers.wandb import QuantizationWandbLogger
-        state["loggers"]["wandb"] = QuantizationWandbLogger(
-            project=logging_args.wandb_project,
-            entity=logging_args.wandb_entity
-        )
-        logger.info("W&B logging enabled")
+    # if logging_args.enable_wandb:
+    #     from quantool.loggers.wandb import QuantizationWandbLogger
+    #     state["loggers"]["wandb"] = QuantizationWandbLogger(
+    #         project=logging_args.wandb_project,
+    #         entity=logging_args.wandb_entity
+    #     )
+    #     logger.info("W&B logging enabled")
     
     return state
 
@@ -156,7 +160,7 @@ def quantize_step(state):
     margs = state["model_args"]
     # Get source model path - use the actual path/repo ID from model arguments
     source_model_path = state.get("model_path", margs.model_id)
-    cargs = state["calib_args"]
+    # cargs = state["calib_args"]
     
     try:
         # Create quantizer instance
@@ -173,16 +177,17 @@ def quantize_step(state):
         
 
         # Prepare calibration arguments, filtering out None values
-        calib_kwargs = {k: v for k, v in vars(cargs).items() if v is not None}
+        # calib_kwargs = {k: v for k, v in vars(cargs).items() if v is not None}
         
         logger.info(f"Starting quantization: method={qargs.method}, level={level}, source={source_model_path}")
         
         # Apply quantization - pass the source model path instead of loaded model
         # Most quantizers work better with the original model path/repo ID
+        print("Quantization args",qargs.quantization_config)
         quantized_output = quantizer.quantize(
             model=source_model_path, 
             level=level, 
-            **calib_kwargs
+            **qargs.quantization_config
         )
         
         # Store quantizer and results
