@@ -11,9 +11,9 @@ quantization_config:
   llama_cpp_path: null
 
 output_path: "./output/test_gguf"
-push_to_hub: false
-repo_id: null
-private: null
+push_to_hub: true
+repo_id: langtech-mlops/test_gguf
+private: true
 
 seed: 42
 verbose: true

@@ -66,8 +66,8 @@ def main():
             .add_step(setup_logging_step,  name="setup_logging")
             .add_step(validate_args_step,  name="validate_args")
             .add_step(quantize_step,       name="quantize")
-            .add_step(save_step,           name="save_model")
             .add_step(model_card_step,         name="generate_readme")
+            .add_step(save_step,           name="save_model")
         )
         
         state = {

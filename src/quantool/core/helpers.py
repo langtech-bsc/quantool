@@ -248,6 +248,7 @@ class ExportMixin:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Save all model files and model card
             self.save_pretrained(tmpdir)
+            self.save_model_card(tmpdir)
             
             # Create repo (or get existing)
             repo = create_repo(
