@@ -62,9 +62,9 @@ def main():
         # Initialize the pipeline
         pipeline = (
             PipelineBase()
-            .add_step(load_model_step,     name="load_model")
             .add_step(setup_logging_step,  name="setup_logging")
             .add_step(validate_args_step,  name="validate_args")
+            .add_step(load_model_step,     name="load_model")
             .add_step(quantize_step,       name="quantize")
             .add_step(model_card_step,         name="generate_readme")
             .add_step(save_step,           name="save_model")
