@@ -67,7 +67,7 @@ def main():
             .add_step(validate_args_step,  name="validate_args")
             .add_step(quantize_step,       name="quantize")
             .add_step(save_step,           name="save_model")
-            .add_step(readme_step,         name="generate_readme")
+            # .add_step(readme_step,         name="generate_readme")
         )
         
         state = {
