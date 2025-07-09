@@ -67,7 +67,7 @@ def main():
             .add_step(validate_args_step,  name="validate_args")
             .add_step(quantize_step,       name="quantize")
             .add_step(save_step,           name="save_model")
-            # .add_step(readme_step,         name="generate_readme")
+            .add_step(model_card_step,         name="generate_readme")
         )
         
         state = {
@@ -164,7 +164,7 @@ def quantize_step(state):
     
     try:
         # Create quantizer instance
-        quantizer = QuantizerRegistry.create(qargs.method, 
+        quantizer = QuantizerRegistry.create(qargs.method, model_id = margs.model_id, 
                                              **qargs.quantization_config)
         logger.info(f"Created {qargs.method} quantizer: {quantizer.__class__.__name__}")
         
@@ -269,16 +269,15 @@ def save_step(state):
     
     return state
 
-def readme_step(state):
+def model_card_step(state):
     """Generate README using the quantizer's template card."""
     try:
         quantizer = state["quantizer"]
-        if hasattr(quantizer, 'template_card'):
-            # The ExportMixin's _save_model_card method handles README generation
-            # during save_pretrained, so this is already handled in the save step
-            logger.info("README generation handled by quantizer's save_pretrained method.")
-        else:
-            logger.warning("Quantizer has no template_card attribute, skipping README generation.")
+        # The ExportMixin's _save_model_card method handles README generation
+        quantizer.save_model_card(
+            save_directory=state["export_args"].output_path
+        )
+        logger.info("README generated successfully")
     except Exception as e:
         logger.warning(f"Failed to check README generation capability: {e}")
     return state

@@ -138,7 +138,9 @@ class GGUF(BaseQuantizer):
         return str(out_file)
 
     def _quantize_gguf(self, input_gguf: str, output_path: str, quant: str) -> str:
-        out_file = Path(output_path) / f"model-{quant}.gguf"
+        model_name = Path(self.model_id).name if isinstance(self.model_id, str) else str(self.model_id)
+        self.logger.info(f"Model name extracted: {model_name}")
+        out_file = Path(output_path) / f"{model_name}-{quant}.gguf"
         cmd = [
             str(self.quantize_bin),
             input_gguf,
@@ -170,6 +172,9 @@ class GGUF(BaseQuantizer):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         model_path = getattr(model, "name_or_path", str(model))
+        # extract model name from model if str last part is name
+        self.logger.info(f"Quantizing model: {self.model_id} at level {level}")
+
         lvl = str(level)
 
         # If converter supports this outtype, do it directly

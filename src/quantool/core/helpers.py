@@ -195,6 +195,16 @@ class ExportMixin:
         # Save model specific files - to be implemented by subclasses
         self._save_model_files(save_directory)
         
+    def save_model_card(
+            self,
+            save_directory: Union[str, os.PathLike]
+        ):        
+        """Save the model card to a directory.
+        Args:
+            save_directory: Directory where the model card should be saved
+        """
+        os.makedirs(save_directory, exist_ok=True)
+        self.logger.info(f"Saving model card to {save_directory}")
         # Save model card
         self._save_model_card(save_directory)
         
