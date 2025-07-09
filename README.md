@@ -29,7 +29,7 @@ Quantization pipelines under one library.
 - Modular core pipeline for preprocessing, calibration, quantization and evaluaiton
 
 ## Supported Methods
-  - [ ] GGUF
+  - [x] GGUF
   - [ ] AWQ
   - [ ] GPTQ
   - [ ] GPTQv2
@@ -46,38 +46,52 @@ cd quantool
 pip install -e .
 ```
 
+To install llama.cpp only:
+```bash
+git clone  https://github.com/langtech-bsc/quantool.git
+cd quantool
+pip install -e '.[llama-cpp]'
+``` 
+
 ## Usage
 
 Basic CLI example:
 ```bash
-quantool TODO
+quantool config.yaml
 ```
 
 Run `quantool --help` for a full list of options.
 
+## Example Configuration for llama_cpp
+
+Use a YAML config file to run quantization with llama_cpp to do gguf quantization:
+```yaml
+# config.yaml
+model_id: "facebook/llama-7b"
+method: "gguf"
+quantization_config:
+  llama_cpp_path: "/path/to/llama.cpp/executable"
+```
+
 ## Project Structure
 
 ```
-quantool/
-├── args/             # Command-line argument definitions
-│   ├── common_args.py
-│   └── quantization_args.py
-├── core/             # Core pipeline components (preprocess, calibrate, quantize)
-│   ├── base.py
-│   ├── helpers.py
-│   └── registry.py
-├── entrypoints/      # CLI and other entrypoints
-│   └── cli.py
-├── loggers/          # Experiment logging integrations
-│   ├── mlflow.py
-│   └── wandb.py
-├── methods/          # Quantization method implementations
-│   ├── aqml.py
-│   ├── awq.py
-│   ├── gguf.py
-│   ├── gptq.py
-│   └── higgs.py
-└── tests/            # Unit and integration tests
+.
+├── assets/                 # Diagrams and images
+├── src/
+│   └── quantool/           # Library source
+│       ├── args/
+│       ├── core/
+│       ├── entrypoints/
+│       ├── loggers/
+│       ├── methods/
+│       └── utils/
+├── tests/                  # Unit and integration tests
+│   ├── entrypoints/
+│   ├── methods/
+│   └── utils/
+├── pyproject.toml
+└── test_gguf_config.yaml   # Example configuration
 ```
 
 ## System Architecture
@@ -93,6 +107,8 @@ graph LR
   Loggers --> MLflow[MLflow]
   Loggers --> WAndB[Weights & Biases]
 ```
+
+![Quantization Pipeline](assets/pipeline.png)
 
 ## Workflow Process
 
