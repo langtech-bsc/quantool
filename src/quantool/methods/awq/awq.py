@@ -37,7 +37,7 @@ class AWQ(BaseQuantizer):
         else:
             bits = 4  # default
         
-        print(f"Quantizing model to {bits}-bit using AWQ method.")
+        self.logger.info(f"Quantizing model to {bits}-bit using AWQ method.")
         
         # Configure AWQ parameters
         quant_config = {

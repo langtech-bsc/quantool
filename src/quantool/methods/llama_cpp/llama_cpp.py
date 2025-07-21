@@ -199,18 +199,3 @@ class GGUF(BaseQuantizer):
             self.logger.warning("No GGUF file found, using default quantization method.")
             self.quantize(self.source_model, QuantType(self.template_card.hyperparameters["quantization_type"]),
                           save_directory)
-
-
-if __name__ == "__main__":
-    from huggingface_hub import snapshot_download
-
-    # Download the full model snapshot into a local dir
-    local_folder = snapshot_download(
-        repo_id="bert-base-cased", #"amd/AMD-Llama-135m",
-        cache_dir=".",
-        # resume_download=True,  # resume if interrupted
-    )
-    print(f"Downloaded to {local_folder}")
-#     quantizer = QuantizerRegistry.create("gguf")
-#     quantizer.quantize(local_folder, level=QuantType.Q6_K, output_dir="output/gguf")
-#     print("Quantization complete.")

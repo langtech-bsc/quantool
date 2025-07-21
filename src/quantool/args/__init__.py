@@ -1,5 +1,5 @@
 from quantool.args.common_args import CommonArguments, LoggingArguments
-from quantool.args.quantization_args import ModelArguments, QuantizationArguments, EvaluationArguments, ExportArguments #, CalibrationArguments
+from quantool.args.quantization_args import ModelArguments, QuantizationArguments, EvaluationArguments, ExportArguments
 
 __all__ = [
     "CommonArguments",
@@ -8,5 +8,4 @@ __all__ = [
     "QuantizationArguments",
     "EvaluationArguments",
     "ExportArguments",
-    # "CalibrationArguments"
 ]

@@ -5,7 +5,6 @@ from quantool.args import (
     LoggingArguments,
     ModelArguments,
     QuantizationArguments,
-    # CalibrationArguments,
     EvaluationArguments,
     ExportArguments
 )
@@ -30,7 +29,6 @@ def main():
         parser = HfArgumentParser((
             ModelArguments, 
             QuantizationArguments, 
-            # CalibrationArguments, 
             EvaluationArguments,
             ExportArguments,
             CommonArguments,
@@ -41,7 +39,6 @@ def main():
         if len(sys.argv) == 2 and sys.argv[1].endswith((".yaml", ".yml")):
             (model_args, 
             quant_args, 
-            #  calib_args,
             evaluation_args,
             export_args, 
             common_args, logging_args) = parser.parse_yaml_file(
@@ -52,8 +49,7 @@ def main():
             # Fallback to normal CLI parsing:
             (model_args, 
             quant_args, 
-            #  calib_args,
-            evaluation_args, 
+            evaluation_args,
             export_args,
             common_args, 
             logging_args) = parser.parse_args_into_dataclasses()
@@ -73,7 +69,6 @@ def main():
         state = {
             "model_args": model_args,
             "quant_args": quant_args,
-            # "calib_args": calib_args,
             "export_args": export_args,
             "common_args": common_args,
             "logging_args": logging_args,

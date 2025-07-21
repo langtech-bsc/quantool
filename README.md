@@ -26,7 +26,7 @@ Quantization pipelines under one library.
 - Unified CLI for multiple quantization algorithms
 - Plugin-based architecture for extendability
 - Built-in support for logging experiments with MLflow and Weights & Biases
-- Modular core pipeline for preprocessing, calibration, quantization and evaluaiton
+- Modular core pipeline for preprocessing, quantization and evaluation
 
 ## Supported Methods
   - [x] GGUF
