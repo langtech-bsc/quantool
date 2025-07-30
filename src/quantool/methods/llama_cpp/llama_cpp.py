@@ -69,15 +69,20 @@ class GGUF(BaseQuantizer):
         self._check_dependencies()
 
     def _check_dependencies(self):
-        # Locate converter script
         self.logger.info("llama.cpp path: %s", self.llama_cpp_path)
+        self._locate_converter_script()
+        self._locate_quantize_binary()
+        
+        if not self.use_module_import:
+            self.logger.info(f"Found converter: {self.convert_script}")
+        self.logger.info(f"Found quantizer: {self.quantize_bin}")
+
+    def _locate_converter_script(self):
         script = (self.llama_cpp_path / "convert_hf_to_gguf.py") if self.llama_cpp_path else Path(
             "convert_hf_to_gguf.py")
 
         if not script.exists():
-            # Try to import the module instead of using the script file
             try:
-                # import convert_hf_to_gguf
                 self.logger.info("convert_hf_to_gguf.py not found as file, using module import instead")
                 self.use_module_import = True
                 self.convert_script = None
@@ -87,7 +92,7 @@ class GGUF(BaseQuantizer):
             self.convert_script = script
             self.use_module_import = False
 
-        # Locate quantize binary
+    def _locate_quantize_binary(self):
         bin_path = (self.llama_cpp_path / "llama-quantize") if self.llama_cpp_path else None
         if bin_path and bin_path.exists():
             quantize_bin = bin_path
@@ -98,10 +103,12 @@ class GGUF(BaseQuantizer):
             quantize_bin = Path(alt)
 
         self.quantize_bin = quantize_bin
-        if not self.use_module_import:
-            self.logger.info(f"Found converter: {self.convert_script}")
-        self.logger.info(f"Found quantizer: {self.quantize_bin}")
 
+    def _ensure_output_directory(self, output_dir: Optional[Union[str, Path]]) -> Path:
+        output_path = Path(output_dir or tempfile.mkdtemp())
+        output_path.mkdir(parents=True, exist_ok=True)
+        return output_path
+    
     def _convert_hf(self, model_path: str, output_path: str, outtype: str) -> str:
         out_file = Path(output_path) / f"model.{outtype}.gguf"
 
@@ -150,14 +157,8 @@ class GGUF(BaseQuantizer):
         self.logger.info(f"Running quantizer: {' '.join(cmd)}")
         run_command(self.logger, cmd)
         return str(out_file)
-
-    def quantize(
-            self,
-            model: Union[str, Path],
-            level: QuantType = QuantType.Q4_K_M,
-            output_dir: Optional[Union[str, Path]] = None,
-            **kwargs
-    ) -> str:
+    
+    def _validate_and_convert_level(self, level) -> QuantType:
         if not isinstance(level, QuantType):
             try:
                 level = QuantType[level]
@@ -167,24 +168,31 @@ class GGUF(BaseQuantizer):
                 except ValueError:
                     level = QuantType.Q4_K_M
                     self.logger.warning(f"Invalid quantization level '{level}', defaulting to Q4_K_M.")
-
-        output_dir = Path(output_dir or tempfile.mkdtemp())
-        output_dir.mkdir(parents=True, exist_ok=True)
+        return level
+    
+    def quantize(
+            self,
+            model: Union[str, Path],
+            level: QuantType = QuantType.Q4_K_M,
+            output_dir: Optional[Union[str, Path]] = None,
+            **kwargs
+    ) -> str:
+        level = self._validate_and_convert_level(level)
+        output_path = self._ensure_output_directory(output_dir)
 
         model_path = getattr(model, "name_or_path", str(model))
-        # extract model name from model if str last part is name
         self.logger.info(f"Quantizing model: {self.model_id} at level {level}")
 
         lvl = str(level)
 
         # If converter supports this outtype, do it directly
         if lvl in self.CONVERT_OUTTYPES:
-            final = self._convert_hf(model_path, str(output_dir), lvl)
+            final = self._convert_hf(model_path, output_path, lvl)
         else:
             # First convert to FP16
-            base = self._convert_hf(model_path, str(output_dir), "f16")
+            base = self._convert_hf(model_path, output_path, "f16")
             # Then apply k-quant or i-quant
-            final = self._quantize_gguf(base, str(output_dir), lvl)
+            final = self._quantize_gguf(base, output_path, lvl)
 
         self.logger.info(f"Quantization complete: {final}")
         self.last_gguf = final

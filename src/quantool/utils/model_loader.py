@@ -67,8 +67,8 @@ class ModelDownloader:
 
         try:
             # Case 1: Local directory path
-            if self._is_local_path(model_path):
-                return self._handle_local_path(model_path)
+            if self._is_model_dir(model_path):
+                return self._validate_local_path(model_path)
             # Case 2: Trying to download HuggingFace model identifier
             else:
                 logger.info(f"Directory does not contain recognizable model files: {model_name_or_path},"
@@ -81,7 +81,7 @@ class ModelDownloader:
                     return cached_path
 
                 # Else fall to download from HuggingFace Hub
-                return self._handle_hf_model(
+                return self._download_hf_model(
                     model_name_or_path,
                     revision=revision,
                     cache_dir=effective_cache_dir,
@@ -95,7 +95,7 @@ class ModelDownloader:
             logger.error(f"Error processing model '{model_name_or_path}': {e}")
             raise ValueError(f"Could not load model '{model_name_or_path}': {e}")
 
-    def _is_local_path(self, path: Path) -> bool:
+    def _is_model_dir(self, path: Path) -> bool:
         """Check if the path is a local directory containing model files."""
         if not path.exists():
             logger.info(f"Local path does not exist: {path}")
@@ -121,8 +121,8 @@ class ModelDownloader:
         logger.info(f"No recognizable model files found in directory: {path}")
         return False
 
-    def _handle_local_path(self, path: Path) -> str:
-        """Handle local directory path."""
+    def _validate_local_path(self, path: Path) -> str:
+        """Validate local directory path."""
         if not path.exists():
             raise ValueError(f"Local directory not found: {path}")
 
@@ -131,7 +131,7 @@ class ModelDownloader:
 
         return str(path.resolve())
 
-    def _handle_hf_model(
+    def _download_hf_model(
             self,
             model_id: str,
             revision: Optional[str] = None,
@@ -169,34 +169,41 @@ class ModelDownloader:
         except Exception as e:
             raise ValueError(f"Unexpected error downloading model '{model_id}': {e}")
 
-    def _get_cached_path(self, model_id: str, cache_dir: str, revision: Optional[str] = None) -> Optional[str]:
+    def _get_cached_path(self, model_id: str, cache_dir: str, revision: Optional[str] = None) -> Optional[Path]:
         """Get the cached path for a model if it exists."""
-
-        # Clean model_id for filesystem
         clean_model_id = model_id.replace('/', '--')
+        cache_dir = Path(cache_dir)
+        model_cache_dir = cache_dir / f"models--{clean_model_id}/snapshots/"
 
         if revision:
             logger.info(f"Looking for cached model '{model_id}' at revision '{revision}'")
-            model_cache_dir = os.path.join(cache_dir, f"models--{clean_model_id}/snapshots/{revision}")
+            model_cache_dir = model_cache_dir / revision
         else:
             logger.info(f"Looking for cached model '{model_id}'")
-            model_cache_dir = os.path.join(cache_dir, f"models--{clean_model_id}/snapshots/")
-            # Check if the model cache directory exists
-            if not os.path.exists(model_cache_dir):
+            if not model_cache_dir.exists():
                 logger.info(f"Model cache directory does not exist: {model_cache_dir}")
                 return None
-            # Get latest revision dir from model_cache_dir (go through all subdirs)
-            subdirs = [d for d in os.listdir(model_cache_dir) if os.path.isdir(os.path.join(model_cache_dir, d))]
-            if subdirs:
-                # Sort subdirs by modification time and take the most recent one
-                subdirs.sort(key=lambda d: os.path.getmtime(os.path.join(model_cache_dir, d)), reverse=True)
-                model_cache_dir = os.path.join(model_cache_dir, subdirs[0])
+            
+            subdir = self._find_latest_subdir(model_cache_dir)
+            if subdir:
+                model_cache_dir = model_cache_dir / subdir
                 logger.info(f"Using latest revision: {model_cache_dir}")
+            else:
+                return None
 
-        if os.path.exists(model_cache_dir):
-            return model_cache_dir
+        return model_cache_dir if model_cache_dir.exists() else None
 
-        return None
+    def _find_latest_subdir(self, directory: Path) -> Optional[str]:
+        """Find the most recently modified subdirectory."""
+        if not directory.exists():
+            return None
+            
+        subdirs = [d for d in directory.iterdir() if d.is_dir()]
+        if not subdirs:
+            return None
+            
+        latest_subdir = max(subdirs, key=lambda d: d.stat().st_mtime)
+        return latest_subdir.name
 
     def list_cached_models(self) -> List[str]:
         """List all cached models."""
@@ -243,45 +250,3 @@ def load_model(
     """
     downloader = ModelDownloader()
     return downloader.load_model(model_name_or_path, **kwargs)
-
-
-# Example usage
-if __name__ == "__main__":
-    # Example 1: Load from local directory
-    print("Loading model from local directory...")
-    try:
-        model_path = from_pretrained("/Users/macbook/.cache/huggingface/models--bert-base-cased/")
-        print(f"Local model loaded from: {model_path}")
-    except ValueError as e:
-        print(f"Local model not found: {e}")
-
-    print("\nDownloading model from HuggingFace Hub...")
-    # Example 2: Download from HuggingFace
-    try:
-        model_path = load_model("bert-base-cased", revision="cd5ef92a9fb2f889e972770a36d4ed042daf221e")
-        print(f"HF model downloaded to: {model_path}")
-    except ValueError as e:
-        print(f"HF model download failed: {e}")
-
-    print("\nDownloading model with specific revision...")
-    # Example 3: Use with custom cache directory
-    try:
-        model_path = load_model(
-            "openai-community/openai-gpt",
-            cache_dir="./custom_cache",
-            revision="main"
-        )
-        print(f"Model with custom cache: {model_path}")
-    except ValueError as e:
-        print(f"Custom cache download failed: {e}")
-
-    print("\nListing cached models...")
-    # Example 4: Using the class directly
-    downloader = ModelDownloader(cache_dir="./my_models")
-
-    # List cached models
-    cached = downloader.list_cached_models()
-    print(f"Cached models: {cached}")
-
-    # Clear specific model cache
-    downloader.clear_cache("bert-base-uncased")
