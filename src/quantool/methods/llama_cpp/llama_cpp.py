@@ -109,7 +109,7 @@ class GGUF(BaseQuantizer):
         output_path.mkdir(parents=True, exist_ok=True)
         return output_path
     
-    def _convert_hf(self, model_path: str, output_path: str, outtype: str) -> str:
+    def _convert_hf(self, model_path: str, output_path: Union[str, Path], outtype: str) -> str:
         out_file = Path(output_path) / f"model.{outtype}.gguf"
 
         if self.use_module_import:
@@ -144,13 +144,13 @@ class GGUF(BaseQuantizer):
 
         return str(out_file)
 
-    def _quantize_gguf(self, input_gguf: str, output_path: str, quant: str) -> str:
+    def _quantize_gguf(self, input_gguf: Union[str, Path], output_path: Union[str, Path], quant: str) -> str:
         model_name = Path(self.model_id).name if isinstance(self.model_id, str) else str(self.model_id)
         self.logger.info(f"Model name extracted: {model_name}")
         out_file = Path(output_path) / f"{model_name}-{quant}.gguf"
         cmd = [
             str(self.quantize_bin),
-            input_gguf,
+            str(input_gguf),
             str(out_file),
             quant
         ]
