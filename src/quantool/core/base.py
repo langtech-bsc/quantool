@@ -25,4 +25,4 @@ class BaseQuantizer(ABC, ExportMixin):
     @abstractmethod
     def quantize(self, model, level: str, **kwargs):
         """Apply quantization at specified level."""
-        pass
+        raise NotImplementedError("Quantization method not implemented.")
