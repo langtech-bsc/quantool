@@ -54,10 +54,10 @@ higgs = ["flute-kernel"]
 wandb = ["wandb>=0.16.3", "pandas", "numpy"]
 mlflow = ["mlflow"]
 all = [
-#    "quantool[qptq]",
-    "quantool[llama-cpp]",
-#    "quantool[awq]",
-    "quantool[higgs]",
+#    "qptq",
+    "llama-cpp",
+#    "awq",
+    "higgs",
 ]
 
 
