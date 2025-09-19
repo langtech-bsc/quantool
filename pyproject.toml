@@ -36,7 +36,7 @@ dependencies = [
     "scipy>=1.7",
     "numpy>=1.21",
     "pandas>=1.3",
-    "loguru",
+    "loguru"
     "python-json-logger"
 ]
 
@@ -57,9 +57,9 @@ wandb = ["wandb>=0.16.3", "pandas", "numpy"]
 mlflow = ["mlflow"]
 all = [
 #    "qptq",
-    "llama-cpp",
+    "quantool[llama-cpp]",
 #    "awq",
-    "higgs",
+    "quantool[higgs]",
 ]
 
 
