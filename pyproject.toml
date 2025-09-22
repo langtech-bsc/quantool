@@ -43,7 +43,11 @@ dev = [
     "black>=22.0",
     "isort>=5.0",
 ]
-#gptq = ["auto-gptq[triton]"]
+
+aqml = [
+    "aqlm[gpu,cpu]"
+]
+
 llama-cpp = [
   "llama-cpp-scripts @ git+https://github.com/ggml-org/llama.cpp.git@master#egg=llama-cpp-scripts"
 ]
@@ -53,6 +57,7 @@ awq = ["llmcompressor"]
 wandb = ["wandb>=0.16.3", "pandas", "numpy"]
 mlflow = ["mlflow"]
 all = [
+    "quantool[aqlm]",
 #    "quantool[qptq]",
     "quantool[llama-cpp]",
 #    "quantool[awq]",
