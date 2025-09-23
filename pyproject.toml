@@ -1,3 +1,11 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+# Needed so PEP 508 direct references (git/file URLs) are allowed in dependencies
+allow-direct-references = true
+
 [project]
 name="quantool"
 version = "0.0.1"                             # Alpha release
@@ -44,8 +52,8 @@ dev = [
     "isort>=5.0",
 ]
 
-aqml = [
-    "aqlm[gpu,cpu]"
+aqlm = [
+    "aqlm_scripts @ git+https://github.com/langtech-bsc/AQLM.git@main#egg=aqlm_scripts"
 ]
 
 llama-cpp = [
@@ -68,6 +76,5 @@ all = [
 [project.scripts]
 quantool="quantool.entrypoints.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["quantool*"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/quantool"]
