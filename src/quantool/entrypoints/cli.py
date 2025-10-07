@@ -176,9 +176,7 @@ def quantize_step(state):
         
         logger.info(f"Starting quantization: method={qargs.method}, level={level}, source={source_model_path}")
         
-        # Apply quantization - pass the source model path instead of loaded model
-        # Most quantizers work better with the original model path/repo ID
-        print("Quantization args",qargs.quantization_config)
+        logger.info("Quantization args: %s", qargs.quantization_config)
         quantized_output = quantizer.quantize(
             model=source_model_path, 
             level=level, 

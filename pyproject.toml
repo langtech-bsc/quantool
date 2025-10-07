@@ -43,20 +43,18 @@ dev = [
     "black>=22.0",
     "isort>=5.0",
 ]
-#gptq = ["auto-gptq[triton]"]
 llama-cpp = [
   "llama-cpp-scripts @ git+https://github.com/ggml-org/llama.cpp.git@master#egg=llama-cpp-scripts"
 ]
-awq = ["llmcompressor"]
-#higgs = ["flute-kernel"]
+llm-compressor = ["llmcompressor>=0.8.0"]
+higgs = ["flute-kernel"]
 
 wandb = ["wandb>=0.16.3", "pandas", "numpy"]
 mlflow = ["mlflow"]
 all = [
-#    "quantool[qptq]",
     "quantool[llama-cpp]",
-#    "quantool[awq]",
-#    "quantool[higgs]",
+    "quantool[llm-compressor]",
+    "quantool[higgs]",
 ]
 
 
