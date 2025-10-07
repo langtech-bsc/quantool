@@ -169,6 +169,7 @@ class GGUF(BaseQuantizer):
                     self.logger.warning(f"Invalid quantization level '{level}', defaulting to Q4_K_M.")
         return level
     
+    # Public API 
     def quantize(
             self,
             model: Union[str, Path],
@@ -176,6 +177,15 @@ class GGUF(BaseQuantizer):
             output_dir: Optional[Union[str, Path]] = None,
             **kwargs
     ) -> str:
+        """ Apply GGUF quantization to a Hugging Face model.
+        Args:
+            model (str or Path): Path to the Hugging Face model or model identifier.
+            level (QuantType): Desired quantization level.
+            output_dir (str or Path, optional): Directory to save the quantized model.
+        Returns:
+            str: Path to the quantized GGUF model file.
+        """
+        
         level = self._validate_and_convert_level(level)
         output_path = self._ensure_output_directory(output_dir)
 
@@ -197,6 +207,7 @@ class GGUF(BaseQuantizer):
         self.last_gguf = final
         return final
 
+    # ExportMixin hooks
     def _save_model_files(self, save_directory: Union[str, Path]):
         if hasattr(self, "last_gguf"):
             self.logger.info(f"Saving last GGUF file: {self.last_gguf}")

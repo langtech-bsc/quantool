@@ -1,0 +1,37 @@
+model_id: "amd/AMD-Llama-135m"
+tokenizer_name: null
+cache_dir: null
+use_auth_token: false
+revision: null
+
+method: "higgs"
+quant_level: "4bit"
+quantization_config:
+  bits: 4
+  p: 2
+  group_size: 256
+  hadamard_size: 512
+  device_map: "auto"
+  torch_dtype: null
+  trust_remote_code: true
+  tokenizer_kwargs:
+    padding_side: "left"
+    truncation: true
+
+output_path: "./output/test_higgs"
+push_to_hub: true
+repo_id: "langtech-mlops/test_higgs"
+private: true
+
+seed: 42
+verbose: true
+
+report_to: null
+log_level: "INFO"
+save_logs: true
+log_dir: "./logs"
+
+enable_evaluation: false
+eval_dataset: null
+metrics:
+  - perplexity
