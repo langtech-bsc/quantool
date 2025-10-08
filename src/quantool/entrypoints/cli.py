@@ -175,8 +175,8 @@ def quantize_step(state):
         # calib_kwargs = {k: v for k, v in vars(cargs).items() if v is not None}
         
         logger.info(f"Starting quantization: method={qargs.method}, level={level}, source={source_model_path}")
-        
-        logger.info("Quantization args: %s", qargs.quantization_config)
+
+        logger.info(f"Quantization args: {qargs.quantization_config}")
         quantized_output = quantizer.quantize(
             model=source_model_path, 
             level=level, 

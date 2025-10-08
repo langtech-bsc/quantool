@@ -6,10 +6,9 @@ from pathlib import Path
 from typing import Optional, Union, Dict, Any, List
 from huggingface_hub import snapshot_download, hf_hub_download
 from huggingface_hub.utils import HfHubHTTPError
-import logging
+from quantool.core.helpers import LoggerFactory
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = LoggerFactory.get_logger(__name__)
 
 
 class ModelDownloader:

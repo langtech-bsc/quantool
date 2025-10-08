@@ -1,11 +1,10 @@
 import os
 import subprocess
 import sys
-import logging
-from typing import List
+from typing import List, Any
 
 
-def run_command(logger: logging.Logger, command: List[str], cwd: str = "."):
+def run_command(logger: Any, command: List[str], cwd: str = "."):
     """
     Run a command using subprocess.run and log the output.
     
