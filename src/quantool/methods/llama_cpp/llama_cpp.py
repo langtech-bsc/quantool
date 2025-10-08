@@ -2,7 +2,6 @@ import os
 import shutil
 import sys
 import tempfile
-from idlelib.window import registry
 from pathlib import Path
 from typing import List, Optional, Union
 
