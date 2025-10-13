@@ -1,8 +1,21 @@
 from __future__ import annotations
 
 import shutil
+import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from llmcompressor import logger as llmcompressor_logger
+from quantool.core.helpers import LoggerFactory
+
+# Configure llmcompressor's logger to use quantool's format
+LoggerFactory.configure_external_logger(
+    llmcompressor_logger,
+    level="INFO",
+    fmt="<green>{time:YYYY-MM-DD HH:mm:ss}</green> <level>{level: <8}</level> <magenta>[{name}:{module}:{function}:{line}]</magenta> <level>{message}</level>"
+)
+
+# Get our own logger for this module
+logger = LoggerFactory.get_logger(__name__)
 
 from quantool.core.base import BaseQuantizer
 
