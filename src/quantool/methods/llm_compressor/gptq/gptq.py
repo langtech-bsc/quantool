@@ -20,10 +20,10 @@ class GPTQ(LLMCompressorQuantizer):
     supported_levels = [
         "W4A16",      # 4-bit weights, 16-bit activations
         "W8A8",       # 8-bit weights, 8-bit activations (int8)
-        "W8A8_FP8",   # 8-bit weights, 8-bit activations (fp8)
+        "INT8",       # Alias for W8A8
         "W8A16",      # 8-bit weights, 16-bit activations
         "W4A16_ASYM", # 4-bit asymmetric weights
-        "W8A8_INT8",  # Explicit int8 scheme
+        "W4A8",       # 4-bit weights, 8-bit activations
     ]
     
     template_card = TemplateQuantizationCard(
@@ -47,6 +47,7 @@ class GPTQ(LLMCompressorQuantizer):
         """Build GPTQ recipe from level and kwargs."""
         try:
             from llmcompressor.modifiers.quantization import GPTQModifier
+            from compressed_tensors.quantization import is_preset_scheme
         except ImportError as exc:
             raise ImportError(
                 "GPTQModifier not available. Ensure llmcompressor is installed correctly."
@@ -54,6 +55,15 @@ class GPTQ(LLMCompressorQuantizer):
         
         # Determine quantization scheme
         scheme = level or method_kwargs.get("scheme", "W4A16")
+        
+        # Validate scheme against compressed-tensors presets
+        if not is_preset_scheme(scheme):
+            raise ValueError(
+                f"Scheme '{scheme}' is not a valid compressed-tensors preset scheme. "
+                f"Valid schemes include: W8A16, W4A16, W4A16_ASYM, W8A8, INT8, W4A8, "
+                f"FP8, FP8_DYNAMIC, FP8_BLOCK, NVFP4A16, NVFP4, UNQUANTIZED"
+            )
+        
         if scheme not in self.supported_levels:
             self.logger.warning(
                 f"Level '{scheme}' not in supported list, using anyway: {self.supported_levels}"

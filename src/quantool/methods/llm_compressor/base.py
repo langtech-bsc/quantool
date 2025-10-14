@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import shutil
 import sys
 from pathlib import Path
@@ -26,42 +27,8 @@ RecipeType = Union[Any, List[Any]]  # llmcompressor recipe can be a single modif
 class LLMCompressorQuantizer(BaseQuantizer):
     """Shared logic for quantizers backed by llm-compressor."""
 
-    # Keys we transparently forward into llmcompressor.oneshot if provided top-level
-    _AUTOFORWARD_ONESHOT_KEYS: Tuple[str, ...] = (
-        "dataset",
-        "dataset_config_name",
-        "dataset_path",
-        "splits",
-        "num_calibration_samples",
-        "shuffle_calibration_samples",
-        "max_seq_length",
-        "pad_to_max_length",
-        "text_column",
-        "concatenate_data",
-        "streaming",
-        "overwrite_cache",
-        "preprocessing_num_workers",
-        "min_tokens_per_module",
-        "calibrate_moe_context",
-        "pipeline",
-        "sequential_targets",
-        "quantization_aware_calibration",
-        "output_dir",
-        "log_dir",
-        "cache_dir",
-        "use_auth_token",
-        "precision",
-        "trust_remote_code_model",
-        "save_compressed",
-        "distill_teacher",
-        "config_name",
-        "tokenizer",
-        "processor",
-        "device_map",
-        "model_revision",
-        "data_collator",
-        "max_train_samples",
-    )
+    # Cache for oneshot parameter names (extracted once from function signature)
+    _ONESHOT_PARAMS_CACHE: Optional[set] = None
 
     def __init__(self, model_id, *args, **kwargs):
         super().__init__(model_id)
@@ -74,6 +41,31 @@ class LLMCompressorQuantizer(BaseQuantizer):
     # ---------------------------------------------------------------------
     # Public API
     # ---------------------------------------------------------------------
+    @classmethod
+    def _get_oneshot_params(cls) -> set:
+        """Extract parameter names from llmcompressor.oneshot function signature.
+        
+        This dynamically inspects the oneshot function to get all valid parameters,
+        avoiding the need to maintain a hardcoded list that could become outdated.
+        
+        Returns:
+            Set of parameter names accepted by llmcompressor.oneshot
+        """
+        if cls._ONESHOT_PARAMS_CACHE is None:
+            try:
+                from llmcompressor import oneshot
+                sig = inspect.signature(oneshot)
+                # Get all parameter names except 'self' if it exists
+                cls._ONESHOT_PARAMS_CACHE = {
+                    param_name for param_name in sig.parameters.keys()
+                    if param_name != 'self'
+                }
+            except Exception as e:
+                logger.warning(f"Could not extract oneshot parameters: {e}. Using empty set.")
+                cls._ONESHOT_PARAMS_CACHE = set()
+        
+        return cls._ONESHOT_PARAMS_CACHE
+    
     def quantize(
         self,
         model: Union[str, Path, Any],
@@ -106,9 +98,13 @@ class LLMCompressorQuantizer(BaseQuantizer):
         oneshot_kwargs = dict(oneshot_kwargs or {})
         method_kwargs = dict(method_kwargs or {})
 
+        # Get valid oneshot parameters dynamically from function signature
+        valid_oneshot_params = self._get_oneshot_params()
+        
         # Allow top-level convenience keys to flow into oneshot kwargs automatically
+        # if they match oneshot function parameters
         for key in list(kwargs.keys()):
-            if key in self._AUTOFORWARD_ONESHOT_KEYS:
+            if key in valid_oneshot_params:
                 oneshot_kwargs.setdefault(key, kwargs.pop(key))
 
         # Allow "method_kwargs__foo" style to populate method_kwargs automatically

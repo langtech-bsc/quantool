@@ -5,7 +5,7 @@ use_auth_token: false
 revision: null
 
 method: "gptq"
-quant_level: "W4A16"
+quant_level: "W8A8"
 quantization_config:
   targets: "Linear"
   tokenizer: "amd/AMD-Llama-135m"
