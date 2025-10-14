@@ -5,6 +5,7 @@ import time
 import tempfile
 import json
 
+from pathlib import Path
 from typing import Optional, Union
 from loguru import logger
 from huggingface_hub import upload_folder, create_repo, ModelCard, ModelCardData
@@ -119,24 +120,97 @@ class PipelineBase:
         return current
 
 
-def create_model_card_from_template(template: TemplateQuantizationCard) -> ModelCard:
-    """Create a Hugging Face ModelCard from a TemplateQuantizationCard."""
-    # build the ModelCardData payload
-    card_data = ModelCardData(
-        # use title as the model name
-        name=template.title,
-        tags=["quantization"],
-        description=template.description,
-        metrics=template.hyperparameters,
-        intended_use=template.intended_use,
-        limitations=template.limitations,
-        citations=template.citations,
-    )
-    # pass the card_data into from_template
-    return ModelCard.from_template(
+def create_model_card_from_template(
+    template: TemplateQuantizationCard,
+    template_path: Optional[Union[str, Path]] = None
+) -> ModelCard:
+    """Create a Hugging Face ModelCard from a TemplateQuantizationCard.
+    
+    Generates a complete README with both YAML metadata and markdown body content.
+    Uses Jinja2 templating for flexible customization.
+    
+    Args:
+        template: TemplateQuantizationCard with model information
+        template_path: Optional path to a custom Jinja2 template file.
+                      If None, uses the default quantization template.
+    
+    Returns:
+        ModelCard: A complete model card with YAML frontmatter and markdown body
+    """
+    # Build tags list for YAML metadata
+    tags = ["quantization"]
+    if template.hyperparameters.get("method"):
+        method = template.hyperparameters["method"]
+        tags.append(method)
+        # Add common task tags based on method
+        if method in ["gptq", "awq", "gguf"]:
+            tags.append("text-generation")
+    
+    # Build the ModelCardData for YAML metadata (the --- --- section)
+    card_data_dict = {
+        "tags": tags,
+        "model_name": template.title,
+    }
+    
+    # Add optional metadata fields
+    if template.language:
+        card_data_dict["language"] = template.language
+    if template.license:
+        card_data_dict["license"] = template.license
+    if template.library_name:
+        card_data_dict["library_name"] = template.library_name
+    if template.base_model:
+        card_data_dict["base_model"] = template.base_model
+    
+    card_data = ModelCardData(**card_data_dict)
+    
+    # Get template path
+    if template_path is None:
+        # Use default quantization template
+        template_path = Path(__file__).parent.parent / "templates" / "quantization_modelcard_template.md"
+    else:
+        template_path = Path(template_path)
+    
+    # Check if template file exists
+    if not template_path.exists():
+        raise FileNotFoundError(f"Template file not found: {template_path}")
+    
+    # Prepare template kwargs for the Jinja2 template variables
+    # These will fill in the {{ variable }} placeholders in the template
+    template_kwargs = {
+        # Basic info
+        "model_name": template.title,
+        "model_description": template.description,
+        "model_id": template.model_id,
+        "base_model": template.base_model,
+        
+        # Quantization details
+        "quantization_method": template.hyperparameters.get("method"),
+        "quantization_config": template.quantization_config or template.hyperparameters,
+        
+        # Usage
+        "usage_example": template.usage_example,
+        "library_name": template.library_name,
+        "model_file": f"{template.title.lower().replace(' ', '-')}.gguf" if template.hyperparameters.get("format") == "gguf" else None,
+        
+        # Additional info
+        "intended_use": template.intended_use,
+        "limitations": template.limitations,
+        "citations": template.citations,
+        
+        # Metadata
+        "language": template.language,
+        "license": template.license,
+    }
+    
+    # Create the ModelCard using from_template with the template file
+    card = ModelCard.from_template(
         card_data=card_data,
-        template_name=template.title
+        template_path=str(template_path),
+        **template_kwargs
     )
+    
+    return card
 
 
 class ExportMixin:
