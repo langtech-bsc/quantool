@@ -5,12 +5,14 @@ from quantool.args import (
     LoggingArguments,
     ModelArguments,
     QuantizationArguments,
+    CalibrationArguments,
     EvaluationArguments,
-    ExportArguments
+    ExportArguments,
 )
 from quantool.core.registry import QuantizerRegistry
 from quantool.core.helpers import PipelineBase, LoggerFactory
 from quantool.utils import load_model
+from quantool.core.helpers.calibration import CalibrationArtifact
 import sys
 import os
 
@@ -27,8 +29,9 @@ def main():
     try:
         # Initialize argument parser with all argument classes
         parser = HfArgumentParser((
-            ModelArguments, 
-            QuantizationArguments, 
+            ModelArguments,
+            QuantizationArguments,
+            CalibrationArguments,
             EvaluationArguments,
             ExportArguments,
             CommonArguments,
@@ -37,38 +40,42 @@ def main():
         
         # If the user passes a single YAML file, load from it:
         if len(sys.argv) == 2 and sys.argv[1].endswith((".yaml", ".yml")):
-            (model_args, 
-            quant_args, 
+            (model_args,
+            quant_args,
+            calibration_args,
             evaluation_args,
-            export_args, 
+            export_args,
             common_args, logging_args) = parser.parse_yaml_file(
                 sys.argv[1], allow_extra_keys=False
             )
             logger.info(f"Parsed arguments from YAML file: {sys.argv[1]}")
         else:
             # Fallback to normal CLI parsing:
-            (model_args, 
-            quant_args, 
+            (model_args,
+            quant_args,
+            calibration_args,
             evaluation_args,
             export_args,
-            common_args, 
+            common_args,
             logging_args) = parser.parse_args_into_dataclasses()
             logger.info("Parsed arguments from CLI.")
         
         # Initialize the pipeline
         pipeline = (
             PipelineBase()
-            .add_step(setup_logging_step,  name="setup_logging")
-            .add_step(validate_args_step,  name="validate_args")
-            .add_step(load_model_step,     name="load_model")
-            .add_step(quantize_step,       name="quantize")
-            .add_step(model_card_step,         name="generate_readme")
-            .add_step(save_step,           name="save_model")
+            .add_step(setup_logging_step, name="setup_logging")
+            .add_step(validate_args_step, name="validate_args")
+            .add_step(load_model_step, name="load_model")
+            .add_step(prepare_calibration_step, name="prepare_calibration")
+            .add_step(quantize_step, name="quantize")
+            .add_step(model_card_step, name="generate_readme")
+            .add_step(save_step, name="save_model")
         )
         
         state = {
             "model_args": model_args,
             "quant_args": quant_args,
+            "calibration_args": calibration_args,
             "export_args": export_args,
             "common_args": common_args,
             "logging_args": logging_args,
@@ -149,6 +156,74 @@ def validate_args_step(state):
     logger.info(f"Validated arguments for {qargs.method} quantization")
     return state
 
+
+def prepare_calibration_step(state):
+    """Prepare calibration data or descriptor and store it in state['calibration_data'].
+
+    Behavior:
+      - If no calibration args provided -> state['calibration_data'] = None
+      - If `load_in_pipeline` is False -> store a lightweight descriptor (dataset_id or dataset_path)
+      - If `load_in_pipeline` is True -> attempt to load and optionally preprocess dataset
+    """
+    cargs = state.get("calibration_args")
+    # Nothing requested
+    if not cargs or (not getattr(cargs, "dataset_id", None) and not getattr(cargs, "dataset_path", None)):
+        state["calibration_data"] = None
+        logger.info("No calibration dataset requested; skipping calibration preparation")
+        return state
+
+    # If the user prefers the pipeline not to load the dataset, just keep the descriptor
+    if not getattr(cargs, "load_in_pipeline", False):
+        if getattr(cargs, "dataset_id", None):
+            artifact = CalibrationArtifact(type="dataset_id", payload=cargs.dataset_id, meta={"sample_size": cargs.sample_size, "split": cargs.split})
+        else:
+            artifact = CalibrationArtifact(type="dataset_path", payload=cargs.dataset_path, meta={"sample_size": cargs.sample_size, "split": cargs.split})
+        state["calibration_data"] = artifact
+        logger.info(f"Prepared calibration descriptor: {artifact.type}={artifact.payload}")
+        return state
+
+    # Otherwise, try loading the dataset now
+    try:
+        from datasets import load_dataset
+    except Exception as e:
+        raise RuntimeError("Calibration requested but the `datasets` package is not installed. Install with `pip install datasets`.") from e
+
+    # Load dataset by id or from local path
+    if getattr(cargs, "dataset_id", None):
+        ds = load_dataset(cargs.dataset_id, cargs.dataset_config or None, split=cargs.split, cache_dir=cargs.cache_dir)
+    else:
+        # assume a local file (json/ndjson/csv); let datasets infer via data_files
+        ds = load_dataset("json", data_files=cargs.dataset_path, split=cargs.split)
+
+    # Shuffle and sample
+    if getattr(cargs, "shuffle", True):
+        try:
+            ds = ds.shuffle(seed=cargs.seed)
+        except Exception:
+            pass
+    if getattr(cargs, "sample_size", None):
+        try:
+            n = min(len(ds), cargs.sample_size)
+            ds = ds.select(range(n))
+        except Exception:
+            # some datasets/streaming may not support length/select; ignore
+            pass
+
+    # Optional preprocess function (module.func string)
+    if getattr(cargs, "preprocess_fn", None):
+        try:
+            module_name, fn_name = cargs.preprocess_fn.rsplit(".", 1)
+            module = __import__(module_name, fromlist=[fn_name])
+            fn = getattr(module, fn_name)
+            ds = ds.map(lambda ex: fn(ex), batched=False)
+        except Exception as e:
+            logger.warning(f"Failed to run preprocess_fn '{cargs.preprocess_fn}': {e}")
+
+    artifact = CalibrationArtifact(type="hf_dataset", payload=ds, meta={"sample_size": getattr(cargs, "sample_size", None), "split": cargs.split})
+    state["calibration_data"] = artifact
+    logger.info(f"Loaded calibration dataset (samples={artifact.meta.get('sample_size')})")
+    return state
+
 def quantize_step(state):
     """Apply quantization using the specified method."""
     qargs = state["quant_args"]
@@ -176,11 +251,33 @@ def quantize_step(state):
         
         logger.info(f"Starting quantization: method={qargs.method}, level={level}, source={source_model_path}")
 
+        # Build method-specific calibration kwargs from pipeline artifact
+        cal_artifact = state.get("calibration_data")
+        extra_kwargs = {}
+        if cal_artifact is not None:
+            try:
+                art_type = getattr(cal_artifact, "type", None) or cal_artifact.get("type")
+            except Exception:
+                art_type = None
+
+            if art_type == "dataset_id":
+                extra_kwargs["dataset"] = cal_artifact.payload
+                if cal_artifact.meta.get("sample_size"):
+                    extra_kwargs["num_calibration_samples"] = cal_artifact.meta.get("sample_size")
+            elif art_type == "dataset_path":
+                extra_kwargs["dataset_path"] = cal_artifact.payload
+            elif art_type in ("hf_dataset", "dataloader"):
+                # pass as calibration_dataloader which llm-compressor or other methods may accept
+                extra_kwargs["calibration_dataloader"] = cal_artifact.payload
+
         logger.info(f"Quantization args: {qargs.quantization_config}")
+        merged_kwargs = dict(qargs.quantization_config or {})
+        merged_kwargs.update(extra_kwargs)
+
         quantized_output = quantizer.quantize(
-            model=source_model_path, 
-            level=level, 
-            **qargs.quantization_config
+            model=source_model_path,
+            level=level,
+            **merged_kwargs,
         )
         
         # Store quantizer and results
