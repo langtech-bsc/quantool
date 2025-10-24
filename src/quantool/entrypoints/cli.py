@@ -83,7 +83,6 @@ def main():
         logger.info("Starting quantization pipeline...")
         result = pipeline.run(state)
         logger.info("Quantization pipeline completed successfully!")
-        return result
         
     except KeyboardInterrupt:
         logger.info("Process interrupted by user")
