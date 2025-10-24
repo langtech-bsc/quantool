@@ -66,7 +66,6 @@ def main():
             .add_step(setup_logging_step, name="setup_logging")
             .add_step(validate_args_step, name="validate_args")
             .add_step(load_model_step, name="load_model")
-            .add_step(prepare_calibration_step, name="prepare_calibration")
             .add_step(quantize_step, name="quantize")
             .add_step(model_card_step, name="generate_readme")
             .add_step(save_step, name="save_model")
@@ -103,6 +102,18 @@ def load_model_step(state):
         # Load model
         model_path = load_model(margs.model_id, revision = margs.revision, cache_dir = margs.cache_dir)
         state["model_path"] = model_path
+        
+        # Load tokenizer for preprocessing functions that need it
+        try:
+            from transformers import AutoTokenizer
+            tokenizer_name = margs.tokenizer_name or margs.model_id
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, trust_remote_code=True)
+            state["tokenizer"] = tokenizer
+            logger.info(f"Loaded tokenizer from {tokenizer_name}")
+        except Exception as e:
+            logger.warning(f"Could not load tokenizer: {e}")
+            state["tokenizer"] = None
+        
         logger.info(f"Model downloaded successfully from {margs.model_id} to {model_path}")
         
     except Exception as e:
@@ -137,92 +148,24 @@ def setup_logging_step(state):
 def validate_args_step(state):
     """Validate arguments and quantizer availability."""
     qargs = state["quant_args"]
-    
+
     # Check if the requested quantization method is available
     available_methods = QuantizerRegistry.list()
     if qargs.method not in available_methods:
         raise ValueError(f"Quantization method '{qargs.method}' not available. "
                         f"Available methods: {available_methods}")
-    
+
     # Validate quantization level if provided
     if hasattr(qargs, 'quant_level') and qargs.quant_level:
-        # We'll validate the level during quantization since it's method-specific
         logger.info(f"Using quantization level: {qargs.quant_level}")
-    # elif hasattr(qargs, 'bit_width') and qargs.bit_width:
-    #     logger.info(f"Using bit width: {qargs.bit_width}")
     else:
         logger.warning("No quantization level or bit width specified, using method defaults")
-    
+
     logger.info(f"Validated arguments for {qargs.method} quantization")
     return state
 
 
-def prepare_calibration_step(state):
-    """Prepare calibration data or descriptor and store it in state['calibration_data'].
 
-    Behavior:
-      - If no calibration args provided -> state['calibration_data'] = None
-      - If `load_in_pipeline` is False -> store a lightweight descriptor (dataset_id or dataset_path)
-      - If `load_in_pipeline` is True -> attempt to load and optionally preprocess dataset
-    """
-    cargs = state.get("calibration_args")
-    # Nothing requested
-    if not cargs or (not getattr(cargs, "dataset_id", None) and not getattr(cargs, "dataset_path", None)):
-        state["calibration_data"] = None
-        logger.info("No calibration dataset requested; skipping calibration preparation")
-        return state
-
-    # If the user prefers the pipeline not to load the dataset, just keep the descriptor
-    if not getattr(cargs, "load_in_pipeline", False):
-        if getattr(cargs, "dataset_id", None):
-            artifact = CalibrationArtifact(type="dataset_id", payload=cargs.dataset_id, meta={"sample_size": cargs.sample_size, "split": cargs.split})
-        else:
-            artifact = CalibrationArtifact(type="dataset_path", payload=cargs.dataset_path, meta={"sample_size": cargs.sample_size, "split": cargs.split})
-        state["calibration_data"] = artifact
-        logger.info(f"Prepared calibration descriptor: {artifact.type}={artifact.payload}")
-        return state
-
-    # Otherwise, try loading the dataset now
-    try:
-        from datasets import load_dataset
-    except Exception as e:
-        raise RuntimeError("Calibration requested but the `datasets` package is not installed. Install with `pip install datasets`.") from e
-
-    # Load dataset by id or from local path
-    if getattr(cargs, "dataset_id", None):
-        ds = load_dataset(cargs.dataset_id, cargs.dataset_config or None, split=cargs.split, cache_dir=cargs.cache_dir)
-    else:
-        # assume a local file (json/ndjson/csv); let datasets infer via data_files
-        ds = load_dataset("json", data_files=cargs.dataset_path, split=cargs.split)
-
-    # Shuffle and sample
-    if getattr(cargs, "shuffle", True):
-        try:
-            ds = ds.shuffle(seed=cargs.seed)
-        except Exception:
-            pass
-    if getattr(cargs, "sample_size", None):
-        try:
-            n = min(len(ds), cargs.sample_size)
-            ds = ds.select(range(n))
-        except Exception:
-            # some datasets/streaming may not support length/select; ignore
-            pass
-
-    # Optional preprocess function (module.func string)
-    if getattr(cargs, "preprocess_fn", None):
-        try:
-            module_name, fn_name = cargs.preprocess_fn.rsplit(".", 1)
-            module = __import__(module_name, fromlist=[fn_name])
-            fn = getattr(module, fn_name)
-            ds = ds.map(lambda ex: fn(ex), batched=False)
-        except Exception as e:
-            logger.warning(f"Failed to run preprocess_fn '{cargs.preprocess_fn}': {e}")
-
-    artifact = CalibrationArtifact(type="hf_dataset", payload=ds, meta={"sample_size": getattr(cargs, "sample_size", None), "split": cargs.split})
-    state["calibration_data"] = artifact
-    logger.info(f"Loaded calibration dataset (samples={artifact.meta.get('sample_size')})")
-    return state
 
 def quantize_step(state):
     """Apply quantization using the specified method."""
@@ -230,45 +173,111 @@ def quantize_step(state):
     margs = state["model_args"]
     # Get source model path - use the actual path/repo ID from model arguments
     source_model_path = state.get("model_path", margs.model_id)
-    # cargs = state["calib_args"]
-    
+
     try:
         # Create quantizer instance
-        quantizer = QuantizerRegistry.create(qargs.method, model_id = margs.model_id, 
-                                             **qargs.quantization_config)
+        quantizer = QuantizerRegistry.create(qargs.method, model_id=margs.model_id, **qargs.quantization_config)
         logger.info(f"Created {qargs.method} quantizer: {quantizer.__class__.__name__}")
-        
+
         # Determine quantization level
-        level = qargs.quant_level #or str(getattr(qargs, 'bit_width', 'Q4_K_M'))
-        
+        level = qargs.quant_level
+
         # Store original model for comparison (if loaded)
         if state.get("model") is not None:
             state["original_model"] = state["model"]
-        
 
-        # Prepare calibration arguments, filtering out None values
-        # calib_kwargs = {k: v for k, v in vars(cargs).items() if v is not None}
-        
         logger.info(f"Starting quantization: method={qargs.method}, level={level}, source={source_model_path}")
 
-        # Build method-specific calibration kwargs from pipeline artifact
-        cal_artifact = state.get("calibration_data")
+        # Handle calibration arguments and method-specific data preparation
+        cargs = state.get("calibration_args")
         extra_kwargs = {}
-        if cal_artifact is not None:
-            try:
-                art_type = getattr(cal_artifact, "type", None) or cal_artifact.get("type")
-            except Exception:
-                art_type = None
+        dataset_param = None
 
-            if art_type == "dataset_id":
-                extra_kwargs["dataset"] = cal_artifact.payload
-                if cal_artifact.meta.get("sample_size"):
-                    extra_kwargs["num_calibration_samples"] = cal_artifact.meta.get("sample_size")
-            elif art_type == "dataset_path":
-                extra_kwargs["dataset_path"] = cal_artifact.payload
-            elif art_type in ("hf_dataset", "dataloader"):
-                # pass as calibration_dataloader which llm-compressor or other methods may accept
-                extra_kwargs["calibration_dataloader"] = cal_artifact.payload
+        requires_calibration = False
+        try:
+            requires_calibration = bool(quantizer.require_calibration())
+        except Exception:
+            # If quantizer doesn't implement the method or it errors, assume False
+            requires_calibration = False
+
+        has_calib_descriptor = bool(cargs and (getattr(cargs, "dataset_id", None) or getattr(cargs, "dataset_path", None)))
+
+        # Validate calibration requirement
+        if requires_calibration and not has_calib_descriptor:
+            raise ValueError(f"Quantization method '{qargs.method}' requires calibration data, but none was provided. Specify 'dataset_id' or 'dataset_path' in calibration_args.")
+        if not requires_calibration and has_calib_descriptor:
+            logger.warning(f"Quantization method '{qargs.method}' does not require calibration data, but calibration_args were provided. They may be ignored by the method.")
+
+        # If user asked the pipeline to load dataset, do it here and allow quantizer to prepare it
+        if has_calib_descriptor and getattr(cargs, "load_in_pipeline", False):
+            try:
+                from datasets import load_dataset
+            except Exception as e:
+                raise RuntimeError("Calibration requested but the `datasets` package is not installed. Install with `pip install datasets`.") from e
+
+            # Load dataset by id or from local path
+            if getattr(cargs, "dataset_id", None):
+                ds = load_dataset(cargs.dataset_id, cargs.dataset_config or None, split=cargs.split, cache_dir=getattr(cargs, "dataset_cache_dir", None))
+            else:
+                ds = load_dataset("json", data_files=cargs.dataset_path, split=cargs.split)
+
+            # Shuffle and sample
+            if getattr(cargs, "shuffle", True):
+                try:
+                    ds = ds.shuffle(seed=getattr(cargs, "dataset_seed", None))
+                except Exception:
+                    pass
+            if getattr(cargs, "sample_size", None):
+                try:
+                    n = min(len(ds), cargs.sample_size)
+                    ds = ds.select(range(n))
+                except Exception:
+                    pass
+
+            # Optional preprocess function (module.func string)
+            if getattr(cargs, "preprocess_fn", None):
+                try:
+                    import inspect
+                    module_name, fn_name = cargs.preprocess_fn.rsplit(".", 1)
+                    module = __import__(module_name, fromlist=[fn_name])
+                    fn = getattr(module, fn_name)
+
+                    sig = inspect.signature(fn)
+                    needs_tokenizer = 'tokenizer' in sig.parameters
+                    preprocess_kwargs = getattr(cargs, "calibration_config", {}) or {}
+
+                    if needs_tokenizer:
+                        tokenizer = state.get("tokenizer")
+                        if tokenizer is None:
+                            raise ValueError(f"Preprocessing function '{cargs.preprocess_fn}' requires a tokenizer, but none was loaded")
+                        ds = ds.map(lambda ex: fn(ex, tokenizer, **preprocess_kwargs), batched=False)
+                    else:
+                        ds = ds.map(lambda ex: fn(ex, **preprocess_kwargs), batched=False)
+                except Exception as e:
+                    logger.warning(f"Failed to run preprocess_fn '{cargs.preprocess_fn}': {e}")
+
+            # Allow quantizer-specific preparation
+            try:
+                tokenizer = state.get("tokenizer")
+                if hasattr(quantizer, 'prepare_calibration_data') and callable(getattr(quantizer, 'prepare_calibration_data')):
+                    if tokenizer is not None:
+                        ds = quantizer.prepare_calibration_data(ds, tokenizer=tokenizer)
+                    else:
+                        ds = quantizer.prepare_calibration_data(ds)
+            except Exception as e:
+                logger.warning(f"Quantizer-specific calibration preparation failed: {e}")
+
+            dataset_param = ds
+
+        else:
+            # If pipeline is not loading dataset, pass descriptors through kwargs
+            if has_calib_descriptor:
+                if getattr(cargs, "dataset_id", None):
+                    extra_kwargs["dataset"] = cargs.dataset_id
+                    if getattr(cargs, "sample_size", None):
+                        extra_kwargs["num_calibration_samples"] = cargs.sample_size
+                elif getattr(cargs, "dataset_path", None):
+                    extra_kwargs["dataset_path"] = cargs.dataset_path
 
         logger.info(f"Quantization args: {qargs.quantization_config}")
         merged_kwargs = dict(qargs.quantization_config or {})
@@ -277,20 +286,21 @@ def quantize_step(state):
         quantized_output = quantizer.quantize(
             model=source_model_path,
             level=level,
+            dataset=dataset_param,
             **merged_kwargs,
         )
-        
+
         # Store quantizer and results
         state["quantizer"] = quantizer
         state["quantized_output"] = quantized_output
-        
+
         logger.info(f"Quantization completed successfully")
         logger.info(f"Quantized output: {quantized_output}")
-        
+
     except Exception as e:
         logger.error(f"Quantization failed: {e}")
         raise RuntimeError(f"Failed to quantize model using {qargs.method}: {e}") from e
-        
+
     return state
 
 

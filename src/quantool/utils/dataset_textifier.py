@@ -89,6 +89,8 @@ def convert_row(
     # Quick bail-out: not conversational or tokenizer lacks template capability
     if not is_conversational(example) or not has_chat_template(tokenizer):
         return example  # leave unchanged for non-conversational examples
+    elif is_conversational(example) and not has_chat_template(tokenizer):
+        raise ValueError("Example appears conversational but tokenizer lacks chat template support.")
 
     # Validate keys
     supported_keys = ["prompt", "chosen", "rejected", "completion", "messages", "label"]

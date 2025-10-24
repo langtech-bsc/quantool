@@ -1,5 +1,5 @@
 from huggingface_hub import ModelCard, ModelCardData
-from src.quantool.core.meta import TemplateQuantizationCard
+from quantool.core.meta import TemplateQuantizationCard
 
 def create_model_card_from_template(template: TemplateQuantizationCard) -> ModelCard:
     """Create a Hugging Face ModelCard from a TemplateQuantizationCard."""

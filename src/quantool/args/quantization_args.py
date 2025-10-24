@@ -121,9 +121,9 @@ class CalibrationArguments:
         default="train",
         metadata={"help": "Dataset split to use (e.g. 'train', 'validation')."}
     )
-    cache_dir: Optional[str] = field(
+    dataset_cache_dir: Optional[str] = field(
         default=None,
-        metadata={"help": "Cache directory for dataset downloads."}
+        metadata={"help": "Cache directory for dataset downloads (for HF datasets)."}
     )
     sample_size: Optional[int] = field(
         default=1024,
@@ -133,9 +133,9 @@ class CalibrationArguments:
         default=True,
         metadata={"help": "Whether to shuffle before sampling for calibration data."}
     )
-    seed: int = field(
+    dataset_seed: int = field(
         default=42,
-        metadata={"help": "Random seed used for sampling/shuffling."}
+        metadata={"help": "Random seed used for sampling/shuffling the calibration dataset."}
     )
     # If True, pipeline will load and preprocess the dataset object and store it in state.
     load_in_pipeline: bool = field(

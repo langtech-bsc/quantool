@@ -19,12 +19,13 @@ LoggerFactory.configure_external_logger(
 logger = LoggerFactory.get_logger(__name__)
 
 from quantool.core.base import BaseQuantizer
+from quantool.core.helpers.calibration_mixin import CalibrationMixin
 
 
 RecipeType = Union[Any, List[Any]]  # llmcompressor recipe can be a single modifier or a list
 
 
-class LLMCompressorQuantizer(BaseQuantizer):
+class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
     """Shared logic for quantizers backed by llm-compressor."""
 
     # Cache for oneshot parameter names (extracted once from function signature)
@@ -38,9 +39,7 @@ class LLMCompressorQuantizer(BaseQuantizer):
         self.source_model = None
         self._last_recipe: Optional[RecipeType] = None
 
-    # ---------------------------------------------------------------------
     # Public API
-    # ---------------------------------------------------------------------
     @classmethod
     def _get_oneshot_params(cls) -> set:
         """Extract parameter names from llmcompressor.oneshot function signature.
@@ -66,6 +65,9 @@ class LLMCompressorQuantizer(BaseQuantizer):
         
         return cls._ONESHOT_PARAMS_CACHE
     
+    def require_calibration(self):
+        return True
+    
     def quantize(
         self,
         model: Union[str, Path, Any],
@@ -73,6 +75,7 @@ class LLMCompressorQuantizer(BaseQuantizer):
         recipe: Optional[RecipeType] = None,
         oneshot_kwargs: Optional[Dict[str, Any]] = None,
         method_kwargs: Optional[Dict[str, Any]] = None,
+        dataset: Optional[Any] = None,
         **kwargs,
     ) -> str:
         """Run llm-compressor oneshot flow and return the output directory path.
@@ -90,6 +93,9 @@ class LLMCompressorQuantizer(BaseQuantizer):
             Optional dict of arguments forwarded to ``llmcompressor.oneshot``.
         method_kwargs:
             Optional dict of modifier-specific overrides consumed by subclasses.
+        dataset:
+            Optional pre-prepared dataset for calibration. If provided, will be passed
+            directly to llmcompressor.oneshot as the 'dataset' parameter.
         **kwargs:
             Convenience overrides merged into ``oneshot_kwargs`` (for calibration
             dataset, etc.) or ``method_kwargs`` when prefixed accordingly.
@@ -97,6 +103,10 @@ class LLMCompressorQuantizer(BaseQuantizer):
 
         oneshot_kwargs = dict(oneshot_kwargs or {})
         method_kwargs = dict(method_kwargs or {})
+
+        # If dataset is provided directly, use it
+        if dataset is not None:
+            oneshot_kwargs["dataset"] = dataset
 
         # Get valid oneshot parameters dynamically from function signature
         valid_oneshot_params = self._get_oneshot_params()
@@ -138,23 +148,8 @@ class LLMCompressorQuantizer(BaseQuantizer):
         # Store source model reference
         self.source_model = model
         
-         # Try to get tokenizer if available
-        self.logger.info("Trying to load tokenizer...")
-        tokenizer_name = oneshot_kwargs.get("tokenizer")
-        if self.last_tokenizer is None:
-            from transformers import AutoTokenizer
-            if tokenizer_name is None and isinstance(model, str):
-                tokenizer_name = model
-            self.last_tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, trust_remote_code=True)
-            self.last_tokenizer.chat_template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
-            self.logger.info("Loaded tokenizer from model_id")
         # Run oneshot - it returns the quantized model
         try:
-            self.logger.info("Building calibration dataset...")
-            ds = self._build_calibration_data(oneshot_kwargs["dataset"], oneshot_kwargs["num_calibration_samples"], oneshot_kwargs["max_seq_length"], oneshot_kwargs.get("shuffle_calibration_samples", True))
-            oneshot_kwargs["dataset"] = ds
-            self.logger.info("Calibration dataset built successfully.")
-
             self.last_model = oneshot_fn(**oneshot_kwargs)
         except Exception as e:
             self.logger.error(f"llm-compressor oneshot failed: {e}")
@@ -246,31 +241,75 @@ class LLMCompressorQuantizer(BaseQuantizer):
             ) from exc
         return oneshot
 
-    def _build_calibration_data(self,dataset: str, num_calibration_samples: int, max_seq_length: int, shuffle_calibration_samples:bool = True, **kwargs):
+    def prepare_calibration_data(self, dataset, tokenizer=None):
+        """Prepare calibration data for LLM Compressor quantization.
+        
+        This applies chat template processing if a tokenizer is available.
+        Subclasses can override this for additional method-specific preparation.
+        
+        Args:
+            dataset: The loaded dataset (Dataset or DatasetDict)
+            tokenizer: Optional tokenizer for chat template processing
+            
+        Returns:
+            The prepared dataset
+        """
+        def _ensure_text_col(ds):
+            """Ensure the dataset `ds` has a `text` column. If not, try sensible fallbacks.
+
+            This accepts either a single Dataset or a DatasetDict split and returns the
+            transformed object.
+            """
+            try:
+                # Many HF datasets expose .column_names on Dataset objects
+                col_names = set(getattr(ds, "column_names", []))
+            except Exception:
+                col_names = set()
+
+            if "text" in col_names or "text_target" in col_names:
+                return ds
+
+            # Choose a fallback column from common names produced by convert_row
+            fallback_candidates = ["prompt", "completion", "chosen", "rejected", "label"]
+            fallback = None
+            for c in fallback_candidates:
+                if c in col_names:
+                    fallback = c
+                    break
+
+            if fallback is None:
+                # Nothing reasonable found; leave dataset unchanged and let oneshot raise
+                return ds
+
+            # Create a `text` column by copying the fallback column
+            try:
+                ds = ds.map(lambda ex: {"text": ex.get(fallback)}, batched=False)
+                self.logger.info(f"Created 'text' column from fallback '{fallback}' for llm-compressor oneshot")
+            except Exception as e:
+                self.logger.warning(f"Failed to create 'text' fallback column from '{fallback}': {e}")
+
+            return ds
+
+        if tokenizer is not None:
+            try:
+                from quantool.utils.dataset_textifier import convert_row
+
+                # Apply chat template processing
+                dataset = dataset.map(lambda ex: convert_row(ex, tokenizer), batched=False)
+                self.logger.info("Applied chat template processing to calibration dataset")
+            except Exception as e:
+                self.logger.warning(f"Failed to apply chat template processing: {e}")
+
+        # Ensure the dataset provides a 'text' or 'text_target' column required by oneshot
         try:
-            from datasets import load_dataset
-        except ImportError as exc:
-            raise ImportError("datasets library is required for loading calibration data.") from exc
-        
-        # Load the dataset
-        ds = load_dataset(dataset)
-        
-        # Select a subset for calibration
-        if num_calibration_samples > 0:
-            ds = ds["train_sft"].select(range(num_calibration_samples))
-        else:
-            ds = ds["train_sft"]
-        if shuffle_calibration_samples:
-            ds = ds.shuffle(seed=42)
+            # Handle both Dataset and DatasetDict
+            if hasattr(dataset, "keys") and not hasattr(dataset, "column_names"):
+                # likely a DatasetDict
+                for split in list(dataset.keys()):
+                    dataset[split] = _ensure_text_col(dataset[split])
+            else:
+                dataset = _ensure_text_col(dataset)
+        except Exception as e:
+            self.logger.warning(f"Error while ensuring text column for calibration dataset: {e}")
 
-        # Preprocess the data into the format the model is trained with.
-        def preprocess(example):
-            return {"text": self.last_tokenizer.apply_chat_template(example["messages"], tokenize=False,)}
-        ds = ds.map(preprocess)
-
-        # Tokenize the data (be careful with bos tokens - we need add_special_tokens=False since the chat_template already added it).
-        def tokenize(sample):
-            return self.last_tokenizer(sample["text"], padding=False, max_length=max_seq_length, truncation=True, add_special_tokens=False)
-        ds = ds.map(tokenize, remove_columns=ds.column_names)
-
-        return ds
+        return dataset
