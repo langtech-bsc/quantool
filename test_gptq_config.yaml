@@ -4,6 +4,7 @@ cache_dir: null
 use_auth_token: false
 revision: null
 
+calibration_config:
 method: "gptq"
 quant_level: "W8A8"
 quantization_config:
@@ -14,6 +15,7 @@ quantization_config:
   num_calibration_samples: 4
   max_seq_length: 512
   shuffle_calibration_samples: true
+
 
 output_path: "./output/test_gptq"
 push_to_hub: false

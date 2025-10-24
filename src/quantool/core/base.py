@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from quantool.core.helpers import ExportMixin, LoggerFactory
+from quantool.core.helpers import ExportMixin, CalibrationMixin, LoggerFactory
 from quantool.core.meta import TemplateQuantizationCard
 
 
-class BaseQuantizer(ABC, ExportMixin):
+class BaseQuantizer(ABC, ExportMixin, CalibrationMixin):
     """Base class for quantization methods."""
     name: str                 # e.g. "gguf"
     supported_levels: list    # e.g. ["Q2","Q3_K_S","Q4_K_M",...]

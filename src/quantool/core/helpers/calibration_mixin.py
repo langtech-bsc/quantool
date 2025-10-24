@@ -19,5 +19,5 @@ class CalibrationMixin:
         raise NotImplementedError("Subclasses must implement prepare_calibration_data method")
     
     def run_calibration(self):
-        """ Optionally run the calibration process. """
+        """Optionally run the calibration process. Before Quantization. Can be skipped if calibration is done on-the-fly."""
         return None
