@@ -1,23 +1,31 @@
-
 class CalibrationMixin:
     """Mixin for calibration-related functionalities."""
-    
+
+
     def require_calibration(self) -> bool:
         """Check if the model requires calibration.
-        
+
         Returns:
             bool: True if calibration is required, False otherwise.
         """
-        raise NotImplementedError("Subclasses must implement require_calibration method")
-    
-    def prepare_calibration_data(self, data_loader):
-        """Prepare data for calibration.
-        
+        return False
+
+    def prepare_calibration_data(self, dataset, tokenizer=None):
+        """Prepare calibration data for this specific quantization method.
+
+        This method is called after basic dataset loading but before quantization.
+        Subclasses can override this to apply method-specific preprocessing.
+
         Args:
-            data_loader: DataLoader providing calibration data.
+            dataset: The loaded dataset (Dataset or DatasetDict)
+            tokenizer: Optional tokenizer for preprocessing that requires tokenization
+
+        Returns:
+            The prepared dataset ready for quantization
         """
-        raise NotImplementedError("Subclasses must implement prepare_calibration_data method")
-    
+        # Default implementation: return dataset unchanged
+        return dataset
+
     def run_calibration(self):
-        """Optionally run the calibration process. Before Quantization. Can be skipped if calibration is done on-the-fly."""
+        """ Optionally run the calibration process. """
         return None

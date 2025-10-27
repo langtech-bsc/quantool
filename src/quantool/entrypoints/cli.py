@@ -83,6 +83,7 @@ def main():
         logger.info("Starting quantization pipeline...")
         result = pipeline.run(state)
         logger.info("Quantization pipeline completed successfully!")
+        # return result  # Removed to avoid printing large dict in REPL
         
     except KeyboardInterrupt:
         logger.info("Process interrupted by user")
