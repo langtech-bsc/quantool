@@ -135,13 +135,6 @@ python -m quantool.entrypoints.cli \
 
 If you need complex nested method configuration, prefer a YAML file and pass it as the single positional argument.
 
-## Troubleshooting
-
-- Conflicting CLI flags: because we use dataclass flattening to create flags, two dataclasses with the same field name can produce duplicate flags (for example `--seed`). When you encounter this, prefer passing a YAML config file or rename the conflicting field in your local copy of the dataclass.
-- When passing dicts on the CLI (like `quantization_config`) use valid JSON string quoting.
-
-If you'd like, I can also add a short example YAML that demonstrates all argument groups — tell me and I'll add one to the repo.
-
 ## Example Configuration for llama_cpp
 
 Use a YAML config file to run quantization with llama_cpp to do gguf quantization:
