@@ -1,29 +1,35 @@
-import os
-import sys
-import subprocess
 import logging
-import pytest
+import os
+import subprocess
+import sys
 from unittest.mock import MagicMock
+
+import pytest
+
 from quantool.utils.command import run_command
+
 
 @pytest.fixture
 def mock_logger():
     """Return a Logger mock."""
     return MagicMock(spec=logging.Logger)
 
+
 @pytest.fixture
 def mock_subprocess_run(monkeypatch):
     """Patch subprocess.run in our module."""
     mock_run = MagicMock()
-    monkeypatch.setattr('quantool.utils.command.subprocess.run', mock_run)
+    monkeypatch.setattr("quantool.utils.command.subprocess.run", mock_run)
     return mock_run
+
 
 @pytest.fixture
 def mock_sys_exit(monkeypatch):
     """Patch sys.exit to prevent exiting the test process."""
     mock_exit = MagicMock()
-    monkeypatch.setattr('quantool.utils.command.sys.exit', mock_exit)
+    monkeypatch.setattr("quantool.utils.command.sys.exit", mock_exit)
     return mock_exit
+
 
 def test_run_command_success(mock_logger, mock_subprocess_run, monkeypatch):
     """stdout lines are logged, written, and returned; success message is logged."""
@@ -34,8 +40,8 @@ def test_run_command_success(mock_logger, mock_subprocess_run, monkeypatch):
 
     fake_stdout = MagicMock()
     fake_stderr = MagicMock()
-    monkeypatch.setattr(sys, 'stdout', fake_stdout)
-    monkeypatch.setattr(sys, 'stderr', fake_stderr)
+    monkeypatch.setattr(sys, "stdout", fake_stdout)
+    monkeypatch.setattr(sys, "stderr", fake_stderr)
 
     out = run_command(mock_logger, ["cmd", "arg"])
 
@@ -46,7 +52,7 @@ def test_run_command_success(mock_logger, mock_subprocess_run, monkeypatch):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        check=True
+        check=True,
     )
     # logging & writes
     mock_logger.debug.assert_called_once()
@@ -57,6 +63,7 @@ def test_run_command_success(mock_logger, mock_subprocess_run, monkeypatch):
     fake_stdout.write.assert_any_call("line2\n")
     assert out == "line1\nline2"
 
+
 def test_run_command_with_stderr(mock_logger, mock_subprocess_run, monkeypatch):
     """stderr lines are logged as warnings and written to stderr."""
     fake = MagicMock()
@@ -66,8 +73,8 @@ def test_run_command_with_stderr(mock_logger, mock_subprocess_run, monkeypatch):
 
     fake_stdout = MagicMock()
     fake_stderr = MagicMock()
-    monkeypatch.setattr(sys, 'stdout', fake_stdout)
-    monkeypatch.setattr(sys, 'stderr', fake_stderr)
+    monkeypatch.setattr(sys, "stdout", fake_stdout)
+    monkeypatch.setattr(sys, "stderr", fake_stderr)
 
     out = run_command(mock_logger, ["cmd"])
 
@@ -76,7 +83,10 @@ def test_run_command_with_stderr(mock_logger, mock_subprocess_run, monkeypatch):
     fake_stderr.write.assert_any_call("warn\n")
     assert out == "out"
 
-def test_run_command_failure(mock_logger, mock_subprocess_run, mock_sys_exit, monkeypatch):
+
+def test_run_command_failure(
+    mock_logger, mock_subprocess_run, mock_sys_exit, monkeypatch
+):
     """On CalledProcessError, stdout/stderr are logged, exception is logged, exit(127)."""
     err = subprocess.CalledProcessError(1, ["fail"])
     err.stdout = "errout"
@@ -85,8 +95,8 @@ def test_run_command_failure(mock_logger, mock_subprocess_run, mock_sys_exit, mo
 
     fake_stdout = MagicMock()
     fake_stderr = MagicMock()
-    monkeypatch.setattr(sys, 'stdout', fake_stdout)
-    monkeypatch.setattr(sys, 'stderr', fake_stderr)
+    monkeypatch.setattr(sys, "stdout", fake_stdout)
+    monkeypatch.setattr(sys, "stderr", fake_stderr)
 
     run_command(mock_logger, ["fail"])
 
@@ -96,6 +106,7 @@ def test_run_command_failure(mock_logger, mock_subprocess_run, mock_sys_exit, mo
     fake_stdout.write.assert_any_call("errout\n")
     fake_stderr.write.assert_any_call("errmsg\n")
     mock_sys_exit.assert_called_once_with(127)
+
 
 def test_run_command_custom_cwd(mock_logger, mock_subprocess_run):
     """Custom cwd is passed through to subprocess.run."""
@@ -109,6 +120,7 @@ def test_run_command_custom_cwd(mock_logger, mock_subprocess_run):
 
     _, kwargs = mock_subprocess_run.call_args
     assert kwargs["cwd"] == os.path.join(os.getcwd(), custom)
+
 
 def test_run_command_real_echo():
     """Integration: real echo command returns its output."""

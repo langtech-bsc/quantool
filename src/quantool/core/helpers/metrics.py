@@ -1,5 +1,7 @@
 import time
+
 from .logger_factory import LoggerFactory
+
 
 class MetricRecorder:
     """Context manager for recording metrics."""

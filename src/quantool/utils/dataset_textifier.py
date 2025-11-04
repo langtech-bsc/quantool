@@ -9,8 +9,9 @@ application and conversational example normalization) to avoid adding TRL as a
 dependency.
 """
 
-from typing import Any, Callable, Dict, Optional, Union
 from itertools import takewhile
+from typing import Any, Callable, Dict, Optional, Union
+
 
 def has_chat_template(tokenizer_or_processor: Any, verify: bool = False) -> bool:
     """
@@ -47,19 +48,132 @@ def has_chat_template(tokenizer_or_processor: Any, verify: bool = False) -> bool
 
     return False
 
+
 def is_conversational(sample: Union[str, Any]):
     supported_keys = ["prompt", "chosen", "rejected", "completion", "messages"]
     example_keys = {key for key in sample.keys() if key in supported_keys}
 
     if example_keys:
-        key = example_keys.pop()  
+        key = example_keys.pop()
         maybe_messages = sample[key]
         if isinstance(maybe_messages, list):
             maybe_message = maybe_messages[0]
-            if isinstance(maybe_message, dict) and "role" in maybe_message and "content" in maybe_message:
+            if (
+                isinstance(maybe_message, dict)
+                and "role" in maybe_message
+                and "content" in maybe_message
+            ):
                 return True
 
     return False
+
+
+def _validate_example_keys(example: dict) -> set:
+    """Validate that example has supported keys in valid combinations."""
+    supported_keys = ["prompt", "chosen", "rejected", "completion", "messages", "label"]
+    example_keys = {key for key in example.keys() if key in supported_keys}
+    valid_sets = [
+        {"messages"},
+        {"prompt"},
+        {"prompt", "completion"},
+        {"prompt", "chosen", "rejected"},
+        {"chosen", "rejected"},
+        {"prompt", "completion", "label"},
+    ]
+    if example_keys not in valid_sets:
+        raise KeyError(f"Invalid keys in the example: {example_keys}")
+    return example_keys
+
+
+def _extract_common_prefix(str1: str, str2: str) -> str:
+    """Extract the common prefix between two strings."""
+    return "".join(x for x, _ in takewhile(lambda x: x[0] == x[1], zip(str1, str2)))
+
+
+def _process_messages(
+    example: dict, tokenizer: Any, tools: Optional[list], kwargs: dict
+) -> Dict[str, str]:
+    """Process examples with 'messages' key."""
+    messages = tokenizer.apply_chat_template(
+        example["messages"],
+        tools=tools,
+        tokenize=False,
+        add_generation_prompt=False,
+        **kwargs,
+    )
+    return {"text": messages}
+
+
+def _process_prompt_only(
+    example: dict, tokenizer: Any, tools: Optional[list], kwargs: dict
+) -> str:
+    """Process the prompt field and return rendered prompt string."""
+    last_role = example["prompt"][-1].get("role")
+    if last_role == "user":
+        add_generation_prompt = True
+        continue_final_message = False
+    elif last_role == "assistant":
+        add_generation_prompt = False
+        continue_final_message = True
+    else:
+        raise ValueError(f"Invalid role in the last message: {last_role}")
+
+    return tokenizer.apply_chat_template(
+        example["prompt"],
+        tools=tools,
+        continue_final_message=continue_final_message,
+        tokenize=False,
+        add_generation_prompt=add_generation_prompt,
+        **kwargs,
+    )
+
+
+def _process_prompt_with_response(
+    example: dict,
+    prompt: str,
+    response_key: str,
+    tokenizer: Any,
+    tools: Optional[list],
+    kwargs: dict,
+) -> tuple[str, str]:
+    """
+    Process prompt with a response field (chosen/rejected/completion).
+    Returns updated prompt and the response text.
+    """
+    prompt_response = tokenizer.apply_chat_template(
+        example["prompt"] + example[response_key],
+        tools=tools,
+        tokenize=False,
+        **kwargs,
+    )
+    common = _extract_common_prefix(prompt, prompt_response)
+    response = prompt_response[len(common) :]
+    return common, response
+
+
+def _process_implicit_responses(
+    example: dict, tokenizer: Any, tools: Optional[list], kwargs: dict
+) -> Dict[str, str]:
+    """Process examples with chosen/rejected but no explicit prompt."""
+    output = {}
+    if "chosen" in example:
+        chosen = tokenizer.apply_chat_template(
+            example["chosen"],
+            tools=tools,
+            tokenize=False,
+            **kwargs,
+        )
+        output["chosen"] = chosen
+    if "rejected" in example:
+        rejected = tokenizer.apply_chat_template(
+            example["rejected"],
+            tools=tools,
+            tokenize=False,
+            **kwargs,
+        )
+        output["rejected"] = rejected
+    return output
+
 
 def convert_row(
     example: dict[str, list[dict[str, str]]],
@@ -90,121 +204,50 @@ def convert_row(
     if not is_conversational(example) or not has_chat_template(tokenizer):
         return example  # leave unchanged for non-conversational examples
     elif is_conversational(example) and not has_chat_template(tokenizer):
-        raise ValueError("Example appears conversational but tokenizer lacks chat template support.")
+        raise ValueError(
+            "Example appears conversational but tokenizer lacks chat template support."
+        )
 
-    # Validate keys
-    supported_keys = ["prompt", "chosen", "rejected", "completion", "messages", "label"]
-    example_keys = {key for key in example.keys() if key in supported_keys}
-    valid_sets = [
-        {"messages"},
-        {"prompt"},
-        {"prompt", "completion"},
-        {"prompt", "chosen", "rejected"},
-        {"chosen", "rejected"},
-        {"prompt", "completion", "label"},
-    ]
-    if example_keys not in valid_sets:
-        raise KeyError(f"Invalid keys in the example: {example_keys}")
+    _validate_example_keys(example)
 
-    # Helper to merge kwargs supplied per-example
+    # Merge kwargs supplied per-example
     ext_kwargs = example.get("chat_template_kwargs", {}) or {}
     kwargs = {**ext_kwargs, **template_kwargs}
 
     output: Dict[str, str] = {}
 
     try:
-        # messages (language modeling / chat-style)
+        # Handle messages (language modeling / chat-style)
         if "messages" in example:
-            messages = tokenizer.apply_chat_template(
-                example["messages"],
-                tools=tools,
-                tokenize=False,
-                add_generation_prompt=False,
-                **kwargs,
-            )
-            output["text"] = messages
+            return _process_messages(example, tokenizer, tools, kwargs)
 
-        # prompt-only handling
+        # Handle prompt-based examples
         if "prompt" in example:
-            last_role = example["prompt"][-1].get("role")
-            if last_role == "user":
-                add_generation_prompt = True
-                continue_final_message = False
-            elif last_role == "assistant":
-                add_generation_prompt = False
-                continue_final_message = True
-            else:
-                raise ValueError(f"Invalid role in the last message: {last_role}")
+            prompt = _process_prompt_only(example, tokenizer, tools, kwargs)
 
-            prompt = tokenizer.apply_chat_template(
-                example["prompt"],
-                tools=tools,
-                continue_final_message=continue_final_message,
-                tokenize=False,
-                add_generation_prompt=add_generation_prompt,
-                **kwargs,
-            )
-
-        # If prompt is present, compute prompt+chosen/rejected/completion by taking
-        # the rendered combined string and slicing off the shared prefix.
-        if "prompt" in example:
+            # Process prompt with responses
             if "chosen" in example:
-                prompt_chosen = tokenizer.apply_chat_template(
-                    example["prompt"] + example["chosen"],
-                    tools=tools,
-                    tokenize=False,
-                    **kwargs,
+                prompt, chosen = _process_prompt_with_response(
+                    example, prompt, "chosen", tokenizer, tools, kwargs
                 )
-                # common prefix of prompt vs prompt+chosen
-                common = "".join(x for x, _ in takewhile(lambda x: x[0] == x[1], zip(prompt, prompt_chosen)))
-                prompt = common
-                chosen = prompt_chosen[len(common) :]
                 output["chosen"] = chosen
 
             if "rejected" in example:
-                prompt_rejected = tokenizer.apply_chat_template(
-                    example["prompt"] + example["rejected"],
-                    tools=tools,
-                    tokenize=False,
-                    **kwargs,
+                prompt, rejected = _process_prompt_with_response(
+                    example, prompt, "rejected", tokenizer, tools, kwargs
                 )
-                common = "".join(x for x, _ in takewhile(lambda x: x[0] == x[1], zip(prompt, prompt_rejected)))
-                prompt = common
-                rejected = prompt_rejected[len(common) :]
                 output["rejected"] = rejected
 
             if "completion" in example:
-                prompt_completion = tokenizer.apply_chat_template(
-                    example["prompt"] + example["completion"],
-                    tools=tools,
-                    tokenize=False,
-                    **kwargs,
+                prompt, completion = _process_prompt_with_response(
+                    example, prompt, "completion", tokenizer, tools, kwargs
                 )
-                common = "".join(x for x, _ in takewhile(lambda x: x[0] == x[1], zip(prompt, prompt_completion)))
-                prompt = common
-                completion = prompt_completion[len(common) :]
                 output["completion"] = completion
 
             output["prompt"] = prompt
-
         else:
-            # implicit prompt case: chosen/rejected alone
-            if "chosen" in example:
-                chosen = tokenizer.apply_chat_template(
-                    example["chosen"],
-                    tools=tools,
-                    tokenize=False,
-                    **kwargs,
-                )
-                output["chosen"] = chosen
-            if "rejected" in example:
-                rejected = tokenizer.apply_chat_template(
-                    example["rejected"],
-                    tools=tools,
-                    tokenize=False,
-                    **kwargs,
-                )
-                output["rejected"] = rejected
+            # Implicit prompt case: chosen/rejected alone
+            output = _process_implicit_responses(example, tokenizer, tools, kwargs)
 
         if "label" in example:
             output["label"] = example["label"]

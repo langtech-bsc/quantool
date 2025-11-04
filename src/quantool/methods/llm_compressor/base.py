@@ -5,24 +5,27 @@ import shutil
 import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+
 from llmcompressor import logger as llmcompressor_logger
+
+from quantool.core.base import BaseQuantizer
 from quantool.core.helpers import LoggerFactory
+from quantool.core.helpers.calibration_mixin import CalibrationMixin
 
 # Configure llmcompressor's logger to use quantool's format
 LoggerFactory.configure_external_logger(
     llmcompressor_logger,
     level="INFO",
-    fmt="<green>{time:YYYY-MM-DD HH:mm:ss}</green> <level>{level: <8}</level> <magenta>[{name}:{module}:{function}:{line}]</magenta> <level>{message}</level>"
+    fmt="<green>{time:YYYY-MM-DD HH:mm:ss}</green> <level>{level: <8}</level> <magenta>[{name}:{module}:{function}:{line}]</magenta> <level>{message}</level>",
 )
 
 # Get our own logger for this module
 logger = LoggerFactory.get_logger(__name__)
 
-from quantool.core.base import BaseQuantizer
-from quantool.core.helpers.calibration_mixin import CalibrationMixin
 
-
-RecipeType = Union[Any, List[Any]]  # llmcompressor recipe can be a single modifier or a list
+RecipeType = Union[
+    Any, List[Any]
+]  # llmcompressor recipe can be a single modifier or a list
 
 
 class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
@@ -43,31 +46,35 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
     @classmethod
     def _get_oneshot_params(cls) -> set:
         """Extract parameter names from llmcompressor.oneshot function signature.
-        
+
         This dynamically inspects the oneshot function to get all valid parameters,
         avoiding the need to maintain a hardcoded list that could become outdated.
-        
+
         Returns:
             Set of parameter names accepted by llmcompressor.oneshot
         """
         if cls._ONESHOT_PARAMS_CACHE is None:
             try:
                 from llmcompressor import oneshot
+
                 sig = inspect.signature(oneshot)
                 # Get all parameter names except 'self' if it exists
                 cls._ONESHOT_PARAMS_CACHE = {
-                    param_name for param_name in sig.parameters.keys()
-                    if param_name != 'self'
+                    param_name
+                    for param_name in sig.parameters.keys()
+                    if param_name != "self"
                 }
             except Exception as e:
-                logger.warning(f"Could not extract oneshot parameters: {e}. Using empty set.")
+                logger.warning(
+                    f"Could not extract oneshot parameters: {e}. Using empty set."
+                )
                 cls._ONESHOT_PARAMS_CACHE = set()
-        
+
         return cls._ONESHOT_PARAMS_CACHE
-    
+
     def require_calibration(self):
         return True
-    
+
     def quantize(
         self,
         model: Union[str, Path, Any],
@@ -110,7 +117,7 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
 
         # Get valid oneshot parameters dynamically from function signature
         valid_oneshot_params = self._get_oneshot_params()
-        
+
         # Allow top-level convenience keys to flow into oneshot kwargs automatically
         # if they match oneshot function parameters
         for key in list(kwargs.keys()):
@@ -131,7 +138,9 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
         self._last_recipe = recipe
 
         oneshot_fn = self._import_llmcompressor_oneshot()
-        oneshot_kwargs = self._prepare_oneshot_kwargs(model, oneshot_kwargs, inferred_level)
+        oneshot_kwargs = self._prepare_oneshot_kwargs(
+            model, oneshot_kwargs, inferred_level
+        )
         oneshot_kwargs.setdefault("recipe", recipe)
 
         if not self._has_calibration_source(oneshot_kwargs):
@@ -147,7 +156,7 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
 
         # Store source model reference
         self.source_model = model
-        
+
         # Run oneshot - it returns the quantized model
         try:
             self.last_model = oneshot_fn(**oneshot_kwargs)
@@ -156,8 +165,10 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
             raise e
         self.logger.info("llm-compressor oneshot completed successfully.")
         self.last_output_dir = Path(oneshot_kwargs["output_dir"]).resolve()
-        
-        self.logger.info(f"Quantization complete. Model ready at: {self.last_output_dir}")
+
+        self.logger.info(
+            f"Quantization complete. Model ready at: {self.last_output_dir}"
+        )
 
         return str(self.last_output_dir)
 
@@ -173,10 +184,10 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
         dest.mkdir(parents=True, exist_ok=True)
 
         self.logger.info(f"Saving quantized model to: {dest}")
-        
+
         # Save model using its native save_pretrained method
         self.last_model.save_pretrained(str(dest), save_compressed=True)
-        
+
         # Save tokenizer if available
         if self.last_tokenizer is not None:
             self.logger.info(f"Saving tokenizer to: {dest}")
@@ -185,12 +196,15 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
             # Try to load and save tokenizer from model_id
             try:
                 from transformers import AutoTokenizer
-                tokenizer = AutoTokenizer.from_pretrained(self.model_id, trust_remote_code=True)
+
+                tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_id, trust_remote_code=True
+                )
                 tokenizer.save_pretrained(str(dest))
                 self.logger.info("Loaded and saved tokenizer from model_id")
             except Exception as e:
                 self.logger.warning(f"Could not save tokenizer: {e}")
-        
+
         self.logger.info(f"Model and tokenizer saved successfully to: {dest}")
 
     # ------------------------------------------------------------------
@@ -243,17 +257,18 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
 
     def prepare_calibration_data(self, dataset, tokenizer=None):
         """Prepare calibration data for LLM Compressor quantization.
-        
+
         This applies chat template processing if a tokenizer is available.
         Subclasses can override this for additional method-specific preparation.
-        
+
         Args:
             dataset: The loaded dataset (Dataset or DatasetDict)
             tokenizer: Optional tokenizer for chat template processing
-            
+
         Returns:
             The prepared dataset
         """
+
         def _ensure_text_col(ds):
             """Ensure the dataset `ds` has a `text` column. If not, try sensible fallbacks.
 
@@ -270,7 +285,13 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
                 return ds
 
             # Choose a fallback column from common names produced by convert_row
-            fallback_candidates = ["prompt", "completion", "chosen", "rejected", "label"]
+            fallback_candidates = [
+                "prompt",
+                "completion",
+                "chosen",
+                "rejected",
+                "label",
+            ]
             fallback = None
             for c in fallback_candidates:
                 if c in col_names:
@@ -284,9 +305,13 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
             # Create a `text` column by copying the fallback column
             try:
                 ds = ds.map(lambda ex: {"text": ex.get(fallback)}, batched=False)
-                self.logger.info(f"Created 'text' column from fallback '{fallback}' for llm-compressor oneshot")
+                self.logger.info(
+                    f"Created 'text' column from fallback '{fallback}' for llm-compressor oneshot"
+                )
             except Exception as e:
-                self.logger.warning(f"Failed to create 'text' fallback column from '{fallback}': {e}")
+                self.logger.warning(
+                    f"Failed to create 'text' fallback column from '{fallback}': {e}"
+                )
 
             return ds
 
@@ -295,8 +320,12 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
                 from quantool.utils.dataset_textifier import convert_row
 
                 # Apply chat template processing
-                dataset = dataset.map(lambda ex: convert_row(ex, tokenizer), batched=False)
-                self.logger.info("Applied chat template processing to calibration dataset")
+                dataset = dataset.map(
+                    lambda ex: convert_row(ex, tokenizer), batched=False
+                )
+                self.logger.info(
+                    "Applied chat template processing to calibration dataset"
+                )
             except Exception as e:
                 self.logger.warning(f"Failed to apply chat template processing: {e}")
 
@@ -310,6 +339,8 @@ class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
             else:
                 dataset = _ensure_text_col(dataset)
         except Exception as e:
-            self.logger.warning(f"Error while ensuring text column for calibration dataset: {e}")
+            self.logger.warning(
+                f"Error while ensuring text column for calibration dataset: {e}"
+            )
 
         return dataset

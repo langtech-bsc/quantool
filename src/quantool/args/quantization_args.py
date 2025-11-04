@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import List, Optional
 
 
 @dataclass
@@ -7,6 +7,7 @@ class ModelArguments:
     """
     Model loading and I/O paths.
     """
+
     model_id: str = field(
         metadata={"help": "Path, HF repo ID or alias of the pretrained model."}
     )
@@ -36,6 +37,7 @@ class QuantizationArguments:
     """
     Quantizer selection and precision.
     """
+
     method: str = field(
         default="gguf",
         metadata={"help": "Quantization method: gptq, awq, gguf, higgs, aqml, etc."},
@@ -61,19 +63,18 @@ class EvaluationArguments:
     """
     Arguments for model evaluation.
     """
+
     enable_evaluation: bool = field(
-        default=True,
-        metadata={"help": "Enable model evaluation after quantization."}
+        default=True, metadata={"help": "Enable model evaluation after quantization."}
     )
 
     eval_dataset: Optional[str] = field(
-        default=None,
-        metadata={"help": "Dataset to use for evaluation."}
+        default=None, metadata={"help": "Dataset to use for evaluation."}
     )
 
     metrics: List[str] = field(
         default_factory=lambda: ["perplexity"],
-        metadata={"help": "Metrics to compute during evaluation."}
+        metadata={"help": "Metrics to compute during evaluation."},
     )
 
 
@@ -82,6 +83,7 @@ class ExportArguments:
     """
     Export format and output path.
     """
+
     output_path: str = field(
         default="quantized_model",
         metadata={"help": "Path (including filename) for the exported model."},
@@ -105,49 +107,63 @@ class CalibrationArguments:
     """
     Arguments for calibration dataset loading and preprocessing.
     """
+
     dataset_id: Optional[str] = field(
         default=None,
-        metadata={"help": "HF datasets id (or dataset identifier) used for calibration (e.g. 'wikitext')."}
+        metadata={
+            "help": "HF datasets id (or dataset identifier) used for calibration (e.g. 'wikitext')."
+        },
     )
     dataset_path: Optional[str] = field(
         default=None,
-        metadata={"help": "Local dataset path (file or directory) to use for calibration."}
+        metadata={
+            "help": "Local dataset path (file or directory) to use for calibration."
+        },
     )
     dataset_config: Optional[str] = field(
         default=None,
-        metadata={"help": "Dataset config name for HF datasets if required."}
+        metadata={"help": "Dataset config name for HF datasets if required."},
     )
     split: Optional[str] = field(
         default="train",
-        metadata={"help": "Dataset split to use (e.g. 'train', 'validation')."}
+        metadata={"help": "Dataset split to use (e.g. 'train', 'validation')."},
     )
     dataset_cache_dir: Optional[str] = field(
         default=None,
-        metadata={"help": "Cache directory for dataset downloads (for HF datasets)."}
+        metadata={"help": "Cache directory for dataset downloads (for HF datasets)."},
     )
     sample_size: Optional[int] = field(
         default=1024,
-        metadata={"help": "Number of examples to use for calibration (None = full split)."}
+        metadata={
+            "help": "Number of examples to use for calibration (None = full split)."
+        },
     )
     shuffle: bool = field(
         default=True,
-        metadata={"help": "Whether to shuffle before sampling for calibration data."}
+        metadata={"help": "Whether to shuffle before sampling for calibration data."},
     )
     dataset_seed: int = field(
         default=42,
-        metadata={"help": "Random seed used for sampling/shuffling the calibration dataset."}
+        metadata={
+            "help": "Random seed used for sampling/shuffling the calibration dataset."
+        },
     )
-    # If True, pipeline will load and preprocess the dataset object and store it in state.
     load_in_pipeline: bool = field(
         default=False,
-        metadata={"help": "If True, the pipeline will load and preprocess the dataset and pass objects to the quantizer."}
+        metadata={
+            "help": "If True, the pipeline will load and preprocess the dataset and pass objects to the quantizer."
+        },
     )
     preprocess_fn: Optional[str] = field(
         default=None,
-        metadata={"help": "Optional name of a preprocessing function (module.func) to run on examples."}
+        metadata={
+            "help": "Optional name of a preprocessing function (module.func) to run on examples."
+        },
     )
     # Method-specific calibration options
     calibration_config: dict = field(
         default_factory=dict,
-        metadata={"help": "Method specific calibration config that is passed to quantizer.calibrate(...) if needed."}
+        metadata={
+            "help": "Method specific calibration config that is passed to quantizer.calibrate(...) if needed."
+        },
     )

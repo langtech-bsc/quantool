@@ -16,6 +16,7 @@ class CalibrationArtifact:
     payload: the actual object
     meta: optional metadata (sample_size, split, etc.)
     """
+
     type: str
     payload: Any
     meta: Optional[Dict[str, Any]] = field(default_factory=dict)

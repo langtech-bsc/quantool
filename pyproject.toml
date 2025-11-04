@@ -49,14 +49,12 @@ llama-cpp = [
   "llama-cpp-scripts @ git+https://github.com/ggml-org/llama.cpp.git@master#egg=llama-cpp-scripts"
 ]
 llm-compressor = ["llmcompressor>=0.8.0"]
-higgs = ["flute-kernel"]
 
 wandb = ["wandb>=0.16.3", "pandas", "numpy"]
 mlflow = ["mlflow"]
 all = [
     "quantool[llama-cpp]",
     "quantool[llm-compressor]",
-    "quantool[higgs]",
 ]
 
 

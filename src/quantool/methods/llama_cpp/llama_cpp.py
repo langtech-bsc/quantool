@@ -2,14 +2,14 @@ import os
 import shutil
 import sys
 import tempfile
+from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Union
 
-from quantool.utils import run_command
-from quantool.core.registry import QuantizerRegistry
 from quantool.core.base import BaseQuantizer
 from quantool.core.meta import TemplateQuantizationCard
-from enum import Enum
+from quantool.core.registry import QuantizerRegistry
+from quantool.utils import run_command
 
 
 class QuantType(Enum):
@@ -46,20 +46,20 @@ class GGUF(BaseQuantizer):
             "format": "gguf",
             "method": "gguf",
             "quantization_type": "Q4_K_M",
-            "context_length": 2048
+            "context_length": 2048,
         },
         intended_use="Efficient inference on CPU and GPU with llama.cpp",
         limitations="Requires llama.cpp conversion tools and specific model architectures",
-        citations=["https://github.com/ggml-org/llama.cpp"]
+        citations=["https://github.com/ggml-org/llama.cpp"],
     )
 
     CONVERT_OUTTYPES = {"f32", "f16", "bf16", "q8_0", "tq1_0", "tq2_0", "auto"}
 
     def __init__(
-            self,
-            *args,
-            llama_cpp_path: Optional[Union[str, Path]] = None,
-            **kwargs,
+        self,
+        *args,
+        llama_cpp_path: Optional[Union[str, Path]] = None,
+        **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.llama_cpp_path = Path(llama_cpp_path) if llama_cpp_path else None
@@ -71,28 +71,37 @@ class GGUF(BaseQuantizer):
         self.logger.info("llama.cpp path: %s", self.llama_cpp_path)
         self._locate_converter_script()
         self._locate_quantize_binary()
-        
+
         if not self.use_module_import:
             self.logger.info(f"Found converter: {self.convert_script}")
         self.logger.info(f"Found quantizer: {self.quantize_bin}")
 
     def _locate_converter_script(self):
-        script = (self.llama_cpp_path / "convert_hf_to_gguf.py") if self.llama_cpp_path else Path(
-            "convert_hf_to_gguf.py")
+        script = (
+            (self.llama_cpp_path / "convert_hf_to_gguf.py")
+            if self.llama_cpp_path
+            else Path("convert_hf_to_gguf.py")
+        )
 
         if not script.exists():
             try:
-                self.logger.info("convert_hf_to_gguf.py not found as file, using module import instead")
+                self.logger.info(
+                    "convert_hf_to_gguf.py not found as file, using module import instead"
+                )
                 self.use_module_import = True
                 self.convert_script = None
             except ImportError:
-                raise RuntimeError(f"convert_hf_to_gguf.py not found at {script} and module import failed.")
+                raise RuntimeError(
+                    f"convert_hf_to_gguf.py not found at {script} and module import failed."
+                )
         else:
             self.convert_script = script
             self.use_module_import = False
 
     def _locate_quantize_binary(self):
-        bin_path = (self.llama_cpp_path / "llama-quantize") if self.llama_cpp_path else None
+        bin_path = (
+            (self.llama_cpp_path / "llama-quantize") if self.llama_cpp_path else None
+        )
         if bin_path and bin_path.exists():
             quantize_bin = bin_path
         else:
@@ -107,8 +116,10 @@ class GGUF(BaseQuantizer):
         output_path = Path(output_dir or tempfile.mkdtemp())
         output_path.mkdir(parents=True, exist_ok=True)
         return output_path
-    
-    def _convert_hf(self, model_path: str, output_path: Union[str, Path], outtype: str) -> str:
+
+    def _convert_hf(
+        self, model_path: str, output_path: Union[str, Path], outtype: str
+    ) -> str:
         out_file = Path(output_path) / f"model.{outtype}.gguf"
 
         if self.use_module_import:
@@ -122,10 +133,14 @@ class GGUF(BaseQuantizer):
                 sys.argv = [
                     "convert_hf_to_gguf.py",  # this placeholder becomes sys.argv[0]
                     model_path,  # input model path
-                    "--outfile", str(out_file),  # output filename
-                    "--outtype", outtype,  # quantization type
+                    "--outfile",
+                    str(out_file),  # output filename
+                    "--outtype",
+                    outtype,  # quantization type
                 ]
-                self.logger.info(f"Running converter via module import with args: {' '.join(sys.argv[1:])}")
+                self.logger.info(
+                    f"Running converter via module import with args: {' '.join(sys.argv[1:])}"
+                )
                 convert_hf_to_gguf.main()
             finally:
                 # Restore original sys.argv
@@ -133,30 +148,34 @@ class GGUF(BaseQuantizer):
         else:
             # Use subprocess approach with script file
             cmd = [
-                sys.executable, str(self.convert_script),
+                sys.executable,
+                str(self.convert_script),
                 model_path,
-                "--outfile", str(out_file),
-                "--outtype", outtype
+                "--outfile",
+                str(out_file),
+                "--outtype",
+                outtype,
             ]
             self.logger.info(f"Running converter: {' '.join(cmd)}")
             run_command(self.logger, cmd)
 
         return str(out_file)
 
-    def _quantize_gguf(self, input_gguf: Union[str, Path], output_path: Union[str, Path], quant: str) -> str:
-        model_name = Path(self.model_id).name if isinstance(self.model_id, str) else str(self.model_id)
+    def _quantize_gguf(
+        self, input_gguf: Union[str, Path], output_path: Union[str, Path], quant: str
+    ) -> str:
+        model_name = (
+            Path(self.model_id).name
+            if isinstance(self.model_id, str)
+            else str(self.model_id)
+        )
         self.logger.info(f"Model name extracted: {model_name}")
         out_file = Path(output_path) / f"{model_name}-{quant}.gguf"
-        cmd = [
-            str(self.quantize_bin),
-            str(input_gguf),
-            str(out_file),
-            quant
-        ]
+        cmd = [str(self.quantize_bin), str(input_gguf), str(out_file), quant]
         self.logger.info(f"Running quantizer: {' '.join(cmd)}")
         run_command(self.logger, cmd)
         return str(out_file)
-    
+
     def _validate_and_convert_level(self, level) -> QuantType:
         if not isinstance(level, QuantType):
             try:
@@ -166,15 +185,17 @@ class GGUF(BaseQuantizer):
                     level = QuantType(level)
                 except ValueError:
                     level = QuantType.Q4_K_M
-                    self.logger.warning(f"Invalid quantization level '{level}', defaulting to Q4_K_M.")
+                    self.logger.warning(
+                        f"Invalid quantization level '{level}', defaulting to Q4_K_M."
+                    )
         return level
-    
+
     def quantize(
-            self,
-            model: Union[str, Path],
-            level: QuantType = QuantType.Q4_K_M,
-            output_dir: Optional[Union[str, Path]] = None,
-            **kwargs
+        self,
+        model: Union[str, Path],
+        level: QuantType = QuantType.Q4_K_M,
+        output_dir: Optional[Union[str, Path]] = None,
+        **kwargs,
     ) -> str:
         level = self._validate_and_convert_level(level)
         output_path = self._ensure_output_directory(output_dir)
@@ -203,6 +224,11 @@ class GGUF(BaseQuantizer):
             shutil.copy(self.last_gguf, save_directory)
         else:
             # Fall back to default quantization
-            self.logger.warning("No GGUF file found, using default quantization method.")
-            self.quantize(self.source_model, QuantType(self.template_card.hyperparameters["quantization_type"]),
-                          save_directory)
+            self.logger.warning(
+                "No GGUF file found, using default quantization method."
+            )
+            self.quantize(
+                self.source_model,
+                QuantType(self.template_card.hyperparameters["quantization_type"]),
+                save_directory,
+            )

@@ -1,5 +1,7 @@
 from huggingface_hub import ModelCard, ModelCardData
+
 from quantool.core.meta import TemplateQuantizationCard
+
 
 def create_model_card_from_template(template: TemplateQuantizationCard) -> ModelCard:
     """Create a Hugging Face ModelCard from a TemplateQuantizationCard."""
@@ -15,7 +17,4 @@ def create_model_card_from_template(template: TemplateQuantizationCard) -> Model
         citations=template.citations,
     )
     # pass the card_data into from_template
-    return ModelCard.from_template(
-        card_data=card_data,
-        template_name=template.title
-    )
+    return ModelCard.from_template(card_data=card_data, template_name=template.title)

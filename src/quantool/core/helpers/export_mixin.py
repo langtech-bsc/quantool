@@ -1,21 +1,24 @@
-from typing import Optional, Union
 import os
 import tempfile
-from huggingface_hub import upload_folder, create_repo
+from typing import Optional, Union
+
+from huggingface_hub import create_repo, upload_folder
+
 from .modelcard_generator import create_model_card_from_template
+
 
 class ExportMixin:
     """Mixin for exporting models to local filesystem or Hugging Face Hub.
 
     Provides functionality to save model files and model cards, and push them to the Hub.
     This class should be inherited by model classes that need to support exporting.
-    
+
     Note: This mixin expects the inheriting class to provide a 'logger' attribute.
     """
 
     def _save_model_files(self, save_directory: Union[str, os.PathLike]):
         """Save model-specific files to the specified directory.
-        
+
         Args:
             save_directory: Directory where the model files should be saved
         """
@@ -24,7 +27,9 @@ class ExportMixin:
     def _save_model_card(self, save_directory: Union[str, os.PathLike]):
         """Save model card to the specified directory."""
         if not hasattr(self, "template_card"):
-            self.logger.warning("No template_card attribute found, skipping model card generation")
+            self.logger.warning(
+                "No template_card attribute found, skipping model card generation"
+            )
             return
 
         model_card = create_model_card_from_template(self.template_card)
@@ -33,12 +38,12 @@ class ExportMixin:
         self.logger.info(f"Model card saved to {model_card_path}")
 
     def _upload_folder(
-            self,
-            working_dir: Union[str, os.PathLike],
-            repo_id: str,
-            token: Optional[str] = None,
-            commit_message: Optional[str] = None,
-            create_pr: bool = False
+        self,
+        working_dir: Union[str, os.PathLike],
+        repo_id: str,
+        token: Optional[str] = None,
+        commit_message: Optional[str] = None,
+        create_pr: bool = False,
     ):
         """Upload a folder to Hugging Face Hub."""
         if commit_message is None:
@@ -51,15 +56,12 @@ class ExportMixin:
             repo_type="model",
             token=token,
             commit_message=commit_message,
-            create_pr=create_pr
+            create_pr=create_pr,
         )
 
-    def save_pretrained(
-            self,
-            save_directory: Union[str, os.PathLike]
-    ):
+    def save_pretrained(self, save_directory: Union[str, os.PathLike]):
         """Save the model and configuration files to a directory.
-        
+
         Args:
             save_directory: Directory where the model/files should be saved
         """
@@ -68,10 +70,7 @@ class ExportMixin:
         # Save model specific files - to be implemented by subclasses
         self._save_model_files(save_directory)
 
-    def save_model_card(
-            self,
-            save_directory: Union[str, os.PathLike]
-    ):
+    def save_model_card(self, save_directory: Union[str, os.PathLike]):
         """Save the model card to a directory.
         Args:
             save_directory: Directory where the model card should be saved
@@ -82,17 +81,17 @@ class ExportMixin:
         self._save_model_card(save_directory)
 
     def push_to_hub(
-            self,
-            repo_id: Optional[str] = None,
-            commit_message: Optional[str] = None,
-            private: Optional[bool] = None,
-            token: Optional[str] = None,
-            create_pr: bool = False,
-            safe_serialization: bool = False,
-            variant: Optional[str] = None,
+        self,
+        repo_id: Optional[str] = None,
+        commit_message: Optional[str] = None,
+        private: Optional[bool] = None,
+        token: Optional[str] = None,
+        create_pr: bool = False,
+        safe_serialization: bool = False,
+        variant: Optional[str] = None,
     ):
         """Push the model to the Hugging Face Model Hub.
-        
+
         Args:
             repo_id: The name of the repository to push to
             commit_message: Message to commit while pushing
@@ -101,7 +100,7 @@ class ExportMixin:
             create_pr: Whether to create a PR instead of pushing directly
             safe_serialization: Whether to use safe serialization
             variant: The variant name for this model
-            
+
         Returns:
             The url of the commit on the hub
         """
@@ -110,7 +109,9 @@ class ExportMixin:
                 repo_id = self.repo_id
             else:
                 if not hasattr(self, "name"):
-                    raise ValueError("repo_id must be specified if the model doesn't have a name attribute")
+                    raise ValueError(
+                        "repo_id must be specified if the model doesn't have a name attribute"
+                    )
                 # Use model name if available
                 repo_id = self.name
 
@@ -124,10 +125,7 @@ class ExportMixin:
 
             # Create repo (or get existing)
             repo = create_repo(
-                repo_id=repo_id,
-                token=token,
-                private=private,
-                exist_ok=True
+                repo_id=repo_id, token=token, private=private, exist_ok=True
             )
 
             # Upload the files
@@ -137,5 +135,5 @@ class ExportMixin:
                 repo_id=repo_id,
                 token=token,
                 commit_message=commit_message,
-                create_pr=create_pr
+                create_pr=create_pr,
             )

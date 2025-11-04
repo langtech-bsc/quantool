@@ -1,7 +1,6 @@
 class CalibrationMixin:
     """Mixin for calibration-related functionalities."""
 
-
     def require_calibration(self) -> bool:
         """Check if the model requires calibration.
 
@@ -27,5 +26,5 @@ class CalibrationMixin:
         return dataset
 
     def run_calibration(self):
-        """ Optionally run the calibration process. """
+        """Optionally run the calibration process."""
         return None

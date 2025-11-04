@@ -1,9 +1,10 @@
-import os
-import json
 import glob
+import json
+import os
 import shutil
 from pathlib import Path
-from typing import Optional, Union, Dict, Any, List
+from typing import Any, Dict, List, Optional, Union
+
 from quantool.core.helpers import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
@@ -15,21 +16,33 @@ class DatasetDownloader:
     Wraps around datasets.load_dataset with additional caching and utility features.
     """
 
+    # Common dataset file patterns
+    DATASET_FILE_PATTERNS = [
+        "*.json",
+        "*.jsonl",
+        "*.csv",
+        "*.tsv",
+        "*.txt",
+        "*.parquet",
+        "*.arrow",
+    ]
+
     def __init__(self, cache_dir: Optional[str] = None):
         """
         cache_dir: Directory to cache downloaded datasets.
-                      If None, uses HF_HOME or ~/.cache/huggingface
+        If None, uses HF_HOME or ~/.cache/huggingface
         """
-        self.cache_dir = cache_dir or os.getenv('HF_HOME',
-                                                os.path.expanduser('~/.cache/huggingface'))
+        self.cache_dir = cache_dir or os.getenv(
+            "HF_HOME", os.path.expanduser("~/.cache/huggingface")
+        )
 
     def load_dataset(
-            self,
-            dataset_name_or_path: Union[str, Path],
-            revision: Optional[str] = None,
-            cache_dir: Optional[str] = None,
-            force_download: bool = False,
-            **kwargs
+        self,
+        dataset_name_or_path: Union[str, Path],
+        revision: Optional[str] = None,
+        cache_dir: Optional[str] = None,
+        force_download: bool = False,
+        **kwargs,
     ) -> Any:
         """
         Load a dataset using datasets.load_dataset with enhanced caching and error handling.
@@ -52,7 +65,9 @@ class DatasetDownloader:
         try:
             from datasets import load_dataset
         except ImportError as e:
-            raise ImportError("datasets library is required. Install with `pip install datasets`.") from e
+            raise ImportError(
+                "datasets library is required. Install with `pip install datasets`."
+            ) from e
 
         # Use provided cache_dir or fall back to instance/default cache_dir
         effective_cache_dir = cache_dir or self.cache_dir
@@ -73,23 +88,31 @@ class DatasetDownloader:
                             "json",  # Assume JSON format, could be enhanced to detect format
                             data_files=data_files,
                             cache_dir=effective_cache_dir,
-                            **kwargs
+                            **kwargs,
                         )
                     else:
                         raise ValueError(f"No dataset files found in {dataset_path}")
                 else:
-                    return load_dataset(str(dataset_path), cache_dir=effective_cache_dir, **kwargs)
+                    return load_dataset(
+                        str(dataset_path), cache_dir=effective_cache_dir, **kwargs
+                    )
 
             # Case 2: HuggingFace dataset identifier
             else:
-                logger.info(f"Loading dataset '{dataset_name_or_path}' from HuggingFace Hub")
+                logger.info(
+                    f"Loading dataset '{dataset_name_or_path}' from HuggingFace Hub"
+                )
 
                 return load_dataset(
                     dataset_name_or_path,
                     revision=revision,
                     cache_dir=effective_cache_dir,
-                    download_mode="force_redownload" if force_download else "reuse_dataset_if_exists",
-                    **kwargs
+                    download_mode=(
+                        "force_redownload"
+                        if force_download
+                        else "reuse_dataset_if_exists"
+                    ),
+                    **kwargs,
                 )
 
         except Exception as e:
@@ -98,28 +121,21 @@ class DatasetDownloader:
 
     def _is_dataset_dir(self, path: Path) -> bool:
         """Check if the path is a local directory containing dataset files."""
-        if not path.exists():
+        if not path.exists() or not path.is_dir():
             return False
 
-        if not path.is_dir():
-            return False
-
-        # Check for common dataset files
-        dataset_files = [
-            '*.json', '*.jsonl', '*.csv', '*.tsv', '*.txt',
-            '*.parquet', '*.arrow', 'dataset_info.json'
-        ]
-
-        has_dataset_files = any(glob.glob(str(path / file)) for file in dataset_files)
+        # Check for common dataset files and dataset_info.json
+        patterns_to_check = self.DATASET_FILE_PATTERNS + ["dataset_info.json"]
+        has_dataset_files = any(
+            glob.glob(str(path / pattern)) for pattern in patterns_to_check
+        )
         return has_dataset_files
 
     def _find_dataset_files(self, directory: Path) -> List[str]:
         """Find dataset files in a directory."""
-        dataset_extensions = ['*.json', '*.jsonl', '*.csv', '*.tsv', '*.txt', '*.parquet', '*.arrow']
-
         files = []
-        for ext in dataset_extensions:
-            files.extend(glob.glob(str(directory / ext)))
+        for pattern in self.DATASET_FILE_PATTERNS:
+            files.extend(glob.glob(str(directory / pattern)))
 
         return [str(Path(f).relative_to(directory)) for f in files]
 
@@ -127,6 +143,7 @@ class DatasetDownloader:
         """List all cached datasets in the datasets cache directory."""
         try:
             from datasets import config
+
             cache_dir = Path(config.HF_DATASETS_CACHE)
         except ImportError:
             cache_dir = Path(self.cache_dir) / "datasets"
@@ -137,9 +154,8 @@ class DatasetDownloader:
         cached_datasets = []
         try:
             for item in cache_dir.iterdir():
-                if item.is_dir() and item.name.startswith('___'):
-                    # datasets library uses ___ naming for cached datasets
-                    dataset_name = item.name.replace('___', '').replace('___', '/')
+                if item.is_dir() and item.name.startswith("___"):
+                    dataset_name = item.name.lstrip("___").replace("___", "/")
                     cached_datasets.append(dataset_name)
         except Exception:
             pass
@@ -150,13 +166,14 @@ class DatasetDownloader:
         """Clear cache for a specific dataset or all datasets."""
         try:
             from datasets import config
+
             cache_dir = Path(config.HF_DATASETS_CACHE)
         except ImportError:
             cache_dir = Path(self.cache_dir) / "datasets"
 
         if dataset_name:
             # Clear specific dataset cache
-            clean_name = dataset_name.replace('/', '___')
+            clean_name = dataset_name.replace("/", "___")
             cache_path = cache_dir / f"___{clean_name}"
             if cache_path.exists():
                 shutil.rmtree(cache_path)
@@ -169,10 +186,7 @@ class DatasetDownloader:
 
 
 # Convenience function for direct usage
-def load_dataset(
-        dataset_name_or_path: Union[str, Path],
-        **kwargs
-) -> Any:
+def load_dataset(dataset_name_or_path: Union[str, Path], **kwargs) -> Any:
     """
     Wrapper function to load a dataset.
 

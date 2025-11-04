@@ -1,6 +1,7 @@
 from .logger_factory import LoggerFactory
 from .metrics import MetricRecorder
 
+
 class PipelineBase:
     """Base class for composable processing pipelines."""
 

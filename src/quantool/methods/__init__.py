@@ -1,6 +1,8 @@
-import pkgutil
 import importlib
+import pkgutil
+
 from quantool.core.helpers import LoggerFactory
+
 logger = LoggerFactory.get_logger(__name__)
 
 # Loop over every .py in this package and import it:

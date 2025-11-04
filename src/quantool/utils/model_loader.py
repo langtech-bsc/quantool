@@ -1,11 +1,13 @@
-import os
-import json
 import glob
+import json
+import os
 import shutil
 from pathlib import Path
-from typing import Optional, Union, Dict, Any, List
-from huggingface_hub import snapshot_download, hf_hub_download
+from typing import Any, Dict, List, Optional, Union
+
+from huggingface_hub import hf_hub_download, snapshot_download
 from huggingface_hub.utils import HfHubHTTPError
+
 from quantool.core.helpers import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
@@ -21,19 +23,20 @@ class ModelDownloader:
         cache_dir: Directory to cache downloaded models.
                       If None, uses HF_HOME or ~/.cache/huggingface
         """
-        self.cache_dir = cache_dir or os.getenv('HF_HOME',
-                                                os.path.expanduser('~/.cache/huggingface'))
+        self.cache_dir = cache_dir or os.getenv(
+            "HF_HOME", os.path.expanduser("~/.cache/huggingface")
+        )
 
     def load_model(
-            self,
-            model_name_or_path: Union[str, Path],
-            revision: Optional[str] = None,
-            cache_dir: Optional[str] = None,
-            force_download: bool = False,
-            resume_download: bool = True,
-            proxies: Optional[Dict[str, str]] = None,
-            use_auth_token: Optional[Union[bool, str]] = None,
-            **kwargs
+        self,
+        model_name_or_path: Union[str, Path],
+        revision: Optional[str] = None,
+        cache_dir: Optional[str] = None,
+        force_download: bool = False,
+        resume_download: bool = True,
+        proxies: Optional[Dict[str, str]] = None,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        **kwargs,
     ) -> str:
         """
         Download or locate a pretrained model, similar to HuggingFace's from_pretrained.
@@ -70,11 +73,15 @@ class ModelDownloader:
                 return self._validate_local_path(model_path)
             # Case 2: Trying to download HuggingFace model identifier
             else:
-                logger.info(f"Directory does not contain recognizable model files: {model_name_or_path},"
-                            f" trying to download from HuggingFace Hub")
+                logger.info(
+                    f"Directory does not contain recognizable model files: {model_name_or_path},"
+                    f" trying to download from HuggingFace Hub"
+                )
 
                 # First try to get cached model
-                cached_path = self._get_cached_path(model_name_or_path, effective_cache_dir, revision)
+                cached_path = self._get_cached_path(
+                    model_name_or_path, effective_cache_dir, revision
+                )
                 if cached_path and os.path.exists(cached_path):
                     logger.info(f"Loading cached model from {cached_path}")
                     return cached_path
@@ -88,7 +95,7 @@ class ModelDownloader:
                     resume_download=resume_download,
                     proxies=proxies,
                     use_auth_token=use_auth_token,
-                    **kwargs
+                    **kwargs,
                 )
         except Exception as e:
             logger.error(f"Error processing model '{model_name_or_path}': {e}")
@@ -106,9 +113,13 @@ class ModelDownloader:
 
         # Check for common model files
         model_files = [
-            'config.json', '*.bin', '*.safetensors',
-            'tf_model.h5', 'flax_model.msgpack', 'tokenizer.json',
-            'tokenizer_config.json'
+            "config.json",
+            "*.bin",
+            "*.safetensors",
+            "tf_model.h5",
+            "flax_model.msgpack",
+            "tokenizer.json",
+            "tokenizer_config.json",
         ]
 
         has_model_files = any(glob.glob(str(path / file)) for file in model_files)
@@ -131,20 +142,22 @@ class ModelDownloader:
         return str(path.resolve())
 
     def _download_hf_model(
-            self,
-            model_id: str,
-            revision: Optional[str] = None,
-            cache_dir: str = None,
-            force_download: bool = False,
-            resume_download: bool = True, # TODO: check if its legacy
-            proxies: Optional[Dict[str, str]] = None,
-            use_auth_token: Optional[Union[bool, str]] = None,
-            **kwargs
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        cache_dir: str = None,
+        force_download: bool = False,
+        resume_download: bool = True,  # TODO: check if its legacy
+        proxies: Optional[Dict[str, str]] = None,
+        use_auth_token: Optional[Union[bool, str]] = None,
+        **kwargs,
     ) -> str:
         """Handle HuggingFace model download."""
 
         try:
-            logger.info(f"Downloading model '{model_id}' from HuggingFace Hub using snapshot_download")
+            logger.info(
+                f"Downloading model '{model_id}' from HuggingFace Hub using snapshot_download"
+            )
 
             # Use snapshot_download for full model download
             model_path = snapshot_download(
@@ -155,7 +168,7 @@ class ModelDownloader:
                 # resume_download=resume_download,
                 proxies=proxies,
                 use_auth_token=use_auth_token,
-                **kwargs
+                **kwargs,
             )
             logger.info(f"Model downloaded successfully to: {model_path}")
             return model_path
@@ -168,21 +181,25 @@ class ModelDownloader:
         except Exception as e:
             raise ValueError(f"Unexpected error downloading model '{model_id}': {e}")
 
-    def _get_cached_path(self, model_id: str, cache_dir: str, revision: Optional[str] = None) -> Optional[Path]:
+    def _get_cached_path(
+        self, model_id: str, cache_dir: str, revision: Optional[str] = None
+    ) -> Optional[Path]:
         """Get the cached path for a model if it exists."""
-        clean_model_id = model_id.replace('/', '--')
+        clean_model_id = model_id.replace("/", "--")
         cache_dir = Path(cache_dir)
         model_cache_dir = cache_dir / f"models--{clean_model_id}/snapshots/"
 
         if revision:
-            logger.info(f"Looking for cached model '{model_id}' at revision '{revision}'")
+            logger.info(
+                f"Looking for cached model '{model_id}' at revision '{revision}'"
+            )
             model_cache_dir = model_cache_dir / revision
         else:
             logger.info(f"Looking for cached model '{model_id}'")
             if not model_cache_dir.exists():
                 logger.info(f"Model cache directory does not exist: {model_cache_dir}")
                 return None
-            
+
             subdir = self._find_latest_subdir(model_cache_dir)
             if subdir:
                 model_cache_dir = model_cache_dir / subdir
@@ -196,11 +213,11 @@ class ModelDownloader:
         """Find the most recently modified subdirectory."""
         if not directory.exists():
             return None
-            
+
         subdirs = [d for d in directory.iterdir() if d.is_dir()]
         if not subdirs:
             return None
-            
+
         latest_subdir = max(subdirs, key=lambda d: d.stat().st_mtime)
         return latest_subdir.name
 
@@ -211,9 +228,9 @@ class ModelDownloader:
 
         cached_models = []
         for item in os.listdir(self.cache_dir):
-            if item.startswith('models--'):
+            if item.startswith("models--"):
                 # Convert back to model name format
-                model_name = item.replace('models--', '').replace('--', '/')
+                model_name = item.replace("models--", "").replace("--", "/")
                 cached_models.append(model_name)
 
         return cached_models
@@ -221,7 +238,7 @@ class ModelDownloader:
     def clear_cache(self, model_name_or_path: Optional[str] = None):
         """Clear cache for a specific model or all models."""
         if model_name_or_path:
-            clean_name = model_name_or_path.replace('/', '--')
+            clean_name = model_name_or_path.replace("/", "--")
             cache_path = os.path.join(self.cache_dir, f"models--{clean_name}")
             if os.path.exists(cache_path):
                 shutil.rmtree(cache_path)
@@ -233,10 +250,7 @@ class ModelDownloader:
 
 
 # Convenience function for direct usage
-def load_model(
-        model_name_or_path: Union[str, Path],
-        **kwargs
-) -> str:
+def load_model(model_name_or_path: Union[str, Path], **kwargs) -> str:
     """
     Wrapper function to load a pretrained model.
 
