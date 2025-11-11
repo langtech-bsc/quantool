@@ -137,14 +137,20 @@ def validate_args_step(state):
         raise ValueError(f"Quantization method '{qargs.method}' not available. "
                         f"Available methods: {available_methods}")
     
+    # Get the quantizer class to check capabilities
+    quantizer_cls = QuantizerRegistry._plugins[qargs.method]
+    
     # Validate quantization level if provided
     if hasattr(qargs, 'quant_level') and qargs.quant_level:
-        # We'll validate the level during quantization since it's method-specific
-        logger.info(f"Using quantization level: {qargs.quant_level}")
-    # elif hasattr(qargs, 'bit_width') and qargs.bit_width:
-    #     logger.info(f"Using bit width: {qargs.bit_width}")
+        if isinstance(qargs.quant_level, list):
+            if not getattr(quantizer_cls, 'supports_multiple_levels', False):
+                raise ValueError(f"Quantization method '{qargs.method}' does not support multiple quantization levels. "
+                               f"Please specify a single level or choose a method that supports multiple levels.")
+            logger.info(f"Using multiple quantization levels: {qargs.quant_level}")
+        else:
+            logger.info(f"Using quantization level: {qargs.quant_level}")
     else:
-        logger.warning("No quantization level or bit width specified, using method defaults")
+        logger.warning("No quantization level specified, using method defaults")
     
     logger.info(f"Validated arguments for {qargs.method} quantization")
     return state
@@ -190,7 +196,10 @@ def quantize_step(state):
         state["quantized_output"] = quantized_output
         
         logger.info(f"Quantization completed successfully")
-        logger.info(f"Quantized output: {quantized_output}")
+        if isinstance(quantized_output, list):
+            logger.info(f"Quantized outputs: {quantized_output}")
+        else:
+            logger.info(f"Quantized output: {quantized_output}")
         
     except Exception as e:
         logger.error(f"Quantization failed: {e}")
