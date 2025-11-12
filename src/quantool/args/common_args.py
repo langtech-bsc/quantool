@@ -24,7 +24,7 @@ class LoggingArguments:
     Arguments for experiment logging and tracking.
     """
 
-    report_to: Optional[List[str]] = field(
+    report_to: Optional[Any] = field(
         default=None,
         metadata={"help": "Where to report the results (e.g., 'mlflow', 'wandb')."},
     )

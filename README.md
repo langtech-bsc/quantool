@@ -30,11 +30,11 @@ Quantization pipelines under one library.
 
 ## Supported Methods
   - [x] GGUF
-  - [ ] AWQ
-  - [ ] GPTQ
+  - [x] AWQ
+  - [x] GPTQ
   - [ ] GPTQv2
   - [ ] EXL2
-  - [ ] AQML
+  - [ ] AQLM
   - [ ] HIGGS
   - [ ] MLX
 
@@ -202,4 +202,4 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for gu
 
 ## License
 
-Distributed under the TODO License. See [LICENSE](LICENSE) for more information.
+Distributed under the Apache-2.0 License. See [LICENSE](LICENSE.md) for more information.

@@ -10,7 +10,6 @@ from llmcompressor import logger as llmcompressor_logger
 
 from quantool.core.base import BaseQuantizer
 from quantool.core.helpers import LoggerFactory
-from quantool.core.helpers.calibration_mixin import CalibrationMixin
 
 # Configure llmcompressor's logger to use quantool's format
 LoggerFactory.configure_external_logger(
@@ -28,7 +27,7 @@ RecipeType = Union[
 ]  # llmcompressor recipe can be a single modifier or a list
 
 
-class LLMCompressorQuantizer(BaseQuantizer, CalibrationMixin):
+class LLMCompressorQuantizer(BaseQuantizer):
     """Shared logic for quantizers backed by llm-compressor."""
 
     # Cache for oneshot parameter names (extracted once from function signature)

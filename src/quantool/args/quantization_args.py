@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Any
 
 
 @dataclass
@@ -43,7 +43,7 @@ class QuantizationArguments:
         metadata={"help": "Quantization method: gptq, awq, gguf, higgs, aqml, etc."},
     )
 
-    quant_level: Optional[Union[str, List[str]]] = field(
+    quant_level: Optional[Any] = field(
         default=None,
         metadata={
             "help": (
@@ -74,7 +74,7 @@ class EvaluationArguments:
         default=None, metadata={"help": "Dataset to use for evaluation."}
     )
 
-    metrics: List[str] = field(
+    metrics: Any = field(
         default_factory=lambda: ["perplexity"],
         metadata={"help": "Metrics to compute during evaluation."},
     )
