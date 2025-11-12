@@ -32,6 +32,7 @@ Quantization pipelines under one library.
   - [x] GGUF
   - [x] AWQ
   - [x] GPTQ
+  - [x] SmoothQuant
   - [ ] GPTQv2
   - [ ] EXL2
   - [ ] AQLM
