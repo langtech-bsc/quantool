@@ -34,7 +34,7 @@ Quantization pipelines under one library.
   - [ ] GPTQ
   - [ ] GPTQv2
   - [ ] EXL2
-  - [ ] AQML
+  - [ ] AQLM
   - [ ] HIGGS
   - [ ] MLX
 
