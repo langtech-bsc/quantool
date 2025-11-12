@@ -6,7 +6,7 @@ class Registry:
         self._plugins: dict[str, type[BaseQuantizer]] = {}
 
     def register(self, plugin_cls: type[BaseQuantizer]):
-        if not hasattr(plugin_cls, 'name'):
+        if not hasattr(plugin_cls, "name"):
             raise ValueError(f"{plugin_cls.__name__} must have a 'name' attribute")
         name = plugin_cls.name
         if name in self._plugins:
