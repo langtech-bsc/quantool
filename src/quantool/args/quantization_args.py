@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Optional, List, Union
 
 
 @dataclass
@@ -42,12 +42,14 @@ class QuantizationArguments:
         default="gguf",
         metadata={"help": "Quantization method: gptq, awq, gguf, higgs, aqml, etc."},
     )
-    quant_level: str = field(
+
+    quant_level: Optional[Union[str, List[str]]] = field(
         default=None,
         metadata={
             "help": (
                 "Specific quant set label, e.g. Q2, Q4_K_M for gguf; "
-                "overrides bit_width if provided."
+                "or list of labels for methods that support multiple quantization levels. "
+                "Overrides bit_width if provided."
             )
         },
     )

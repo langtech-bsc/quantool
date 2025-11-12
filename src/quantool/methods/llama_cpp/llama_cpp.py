@@ -38,6 +38,7 @@ class QuantType(Enum):
 class GGUF(BaseQuantizer):
     name = "gguf"
     supported_levels = list(QuantType)
+    supports_multiple_levels = True
 
     template_card = TemplateQuantizationCard(
         title="GGUF",
@@ -191,37 +192,69 @@ class GGUF(BaseQuantizer):
         return level
 
     def quantize(
-        self,
-        model: Union[str, Path],
-        level: QuantType = QuantType.Q4_K_M,
-        output_dir: Optional[Union[str, Path]] = None,
-        **kwargs,
-    ) -> str:
-        level = self._validate_and_convert_level(level)
+            self,
+            model: Union[str, Path],
+            level: Union[str, QuantType, List[Union[str, QuantType]]] = QuantType.Q4_K_M,
+            output_dir: Optional[Union[str, Path]] = None,
+            **kwargs
+    ) -> Union[str, List[str]]:
         output_path = self._ensure_output_directory(output_dir)
-
         model_path = getattr(model, "name_or_path", str(model))
-        self.logger.info(f"Quantizing model: {self.model_id} at level {level}")
-
-        lvl = str(level)
-
-        # If converter supports this outtype, do it directly
-        if lvl in self.CONVERT_OUTTYPES:
-            final = self._convert_hf(model_path, output_path, lvl)
+        
+        if isinstance(level, list):
+            self.logger.info(f"Quantizing model: {self.model_id} to multiple levels: {level}")
+            # Convert HF to FP16 once
+            base_gguf = self._convert_hf(model_path, output_path, "f16")
+            
+            # Quantize to each level
+            results = []
+            for lvl in level:
+                lvl = self._validate_and_convert_level(lvl)
+                lvl_str = str(lvl)
+                
+                if lvl_str in self.CONVERT_OUTTYPES:
+                    # Direct conversion (though unlikely for multiple levels)
+                    final = self._convert_hf(model_path, output_path, lvl_str)
+                else:
+                    # Quantize from the base f16 GGUF
+                    final = self._quantize_gguf(base_gguf, output_path, lvl_str)
+                
+                results.append(final)
+                self.logger.info(f"Quantization complete for {lvl}: {final}")
+            
+            self.last_gguf = results  # Store all results for saving
+            return results
         else:
-            # First convert to FP16
-            base = self._convert_hf(model_path, output_path, "f16")
-            # Then apply k-quant or i-quant
-            final = self._quantize_gguf(base, output_path, lvl)
+            # Single level quantization
+            level = self._validate_and_convert_level(level)
+            self.logger.info(f"Quantizing model: {self.model_id} at level {level}")
 
-        self.logger.info(f"Quantization complete: {final}")
-        self.last_gguf = final
-        return final
+            lvl = str(level)
+
+            # If converter supports this outtype, do it directly
+            if lvl in self.CONVERT_OUTTYPES:
+                final = self._convert_hf(model_path, output_path, lvl)
+            else:
+                # First convert to FP16
+                base = self._convert_hf(model_path, output_path, "f16")
+                # Then apply k-quant or i-quant
+                final = self._quantize_gguf(base, output_path, lvl)
+
+            self.logger.info(f"Quantization complete: {final}")
+            self.last_gguf = final
+            return final
 
     def _save_model_files(self, save_directory: Union[str, Path]):
         if hasattr(self, "last_gguf"):
-            self.logger.info(f"Saving last GGUF file: {self.last_gguf}")
-            shutil.copy(self.last_gguf, save_directory)
+            if isinstance(self.last_gguf, list):
+                # Multiple files from multiple quantization levels
+                for gguf_file in self.last_gguf:
+                    self.logger.info(f"Saving GGUF file: {gguf_file}")
+                    shutil.copy(gguf_file, save_directory)
+            else:
+                # Single file
+                self.logger.info(f"Saving GGUF file: {self.last_gguf}")
+                shutil.copy(self.last_gguf, save_directory)
         else:
             # Fall back to default quantization
             self.logger.warning(

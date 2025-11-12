@@ -5,7 +5,7 @@ use_auth_token: false
 revision: null
 
 method: "gguf"
-quant_level: "Q4_K_M"
+quant_level: ["Q4_K_M", "Q3_K_S"]
 # quantization_config is dictionary with quantization parameters
 quantization_config:
   llama_cpp_path: null

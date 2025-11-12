@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-
+from typing import Union, List
 from quantool.core.helpers import CalibrationMixin, ExportMixin, LoggerFactory
 from quantool.core.meta import TemplateQuantizationCard
 
@@ -7,8 +7,9 @@ from quantool.core.meta import TemplateQuantizationCard
 class BaseQuantizer(ABC, ExportMixin, CalibrationMixin):
     """Base class for quantization methods."""
 
-    name: str  # e.g. "gguf"
-    supported_levels: list  # e.g. ["Q2","Q3_K_S","Q4_K_M",...]
+    name: str                 # e.g. "gguf"
+    supported_levels: list    # e.g. ["Q2","Q3_K_S","Q4_K_M",...]
+    supports_multiple_levels: bool = False  # Whether the method can quantize to multiple levels at once
     template_card: TemplateQuantizationCard  # e.g. TemplateQuantizationCard(title="GGUF", description="GGUF quantization method")
 
     def __init__(self, model_id, *args, **kwargs):
@@ -25,6 +26,8 @@ class BaseQuantizer(ABC, ExportMixin, CalibrationMixin):
         super().__init__(*args, **kwargs)
 
     @abstractmethod
-    def quantize(self, model, level: str, **kwargs):
-        """Apply quantization at specified level."""
-        pass
+    def quantize(self, model, level: Union[str, List[str]], **kwargs) -> Union[str, List[str]]:
+        """Apply quantization at specified level(s)."""
+        if isinstance(level, list) and not self.supports_multiple_levels:
+            raise ValueError(f"Method '{self.name}' does not support multiple quantization levels. "
+                           f"Please specify a single level.")
