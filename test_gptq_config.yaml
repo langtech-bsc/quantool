@@ -1,0 +1,37 @@
+model_id: "amd/AMD-Llama-135m"
+tokenizer_name: null
+cache_dir: null
+use_auth_token: false
+revision: null
+
+method: "gptq"
+quant_level: "W8A8"
+quantization_config:
+  targets: "Linear"
+  ignore: ["lm_head"]
+
+dataset_id: "HuggingFaceH4/ultrachat_200k"
+dataset_config: null
+split: "train_sft"
+dataset_cache_dir: null
+sample_size: 4
+shuffle: true
+dataset_seed: 42
+load_in_pipeline: true
+
+output_path: "./output/test_gptq"
+push_to_hub: false
+repo_id: null
+private: true
+
+enable_evaluation: false
+eval_dataset: null
+metrics: ["perplexity"]
+
+seed: 42
+verbose: true
+
+report_to: null
+log_level: "INFO"
+save_logs: true
+log_dir: "./logs"
