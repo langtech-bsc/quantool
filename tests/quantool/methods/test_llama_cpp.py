@@ -24,7 +24,7 @@ class TestGGUFQuantizer:
 		convert_calls = []
 		quantize_calls = []
 
-		def fake_convert(model_path, out_path, outtype):
+		def fake_convert(model_path, out_path, outtype, metadata=None):
 			convert_calls.append((model_path, out_path, outtype))
 			assert outtype == "f16"
 			return "base_f16.gguf"

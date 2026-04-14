@@ -10,6 +10,12 @@ quant_level: ["Q4_K_M", "Q3_K_S"]
 quantization_config:
   llama_cpp_path: null
 
+general_name: "My Custom Model"
+general_basename: "llama"
+general_finetune: "custom-ft"
+general_version: "1.0"
+
+
 output_path: "./output/test_gguf"
 push_to_hub: true
 repo_id: langtech-mlops/test_gguf
