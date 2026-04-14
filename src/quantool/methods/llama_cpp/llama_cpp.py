@@ -1,10 +1,11 @@
+import json
 import os
 import shutil
 import sys
 import tempfile
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from quantool.core.base import BaseQuantizer
 from quantool.core.meta import TemplateQuantizationCard
@@ -118,10 +119,29 @@ class GGUF(BaseQuantizer):
         output_path.mkdir(parents=True, exist_ok=True)
         return output_path
 
+    def _write_metadata_file(
+        self, metadata: Dict[str, str], output_path: Union[str, Path]
+    ) -> str:
+        """Write GGUF metadata overrides to a temporary JSON file."""
+        metadata_file = Path(output_path) / "metadata_override.json"
+        with open(metadata_file, "w") as f:
+            json.dump(metadata, f, indent=2)
+        self.logger.info(f"Wrote metadata overrides to {metadata_file}: {metadata}")
+        return str(metadata_file)
+
     def _convert_hf(
-        self, model_path: str, output_path: Union[str, Path], outtype: str
+        self,
+        model_path: str,
+        output_path: Union[str, Path],
+        outtype: str,
+        metadata: Optional[Dict[str, str]] = None,
     ) -> str:
         out_file = Path(output_path) / f"model.{outtype}.gguf"
+
+        # Write metadata override file if provided
+        metadata_file = None
+        if metadata:
+            metadata_file = self._write_metadata_file(metadata, output_path)
 
         if self.use_module_import:
             # If we can't find the script, use module import
@@ -139,6 +159,8 @@ class GGUF(BaseQuantizer):
                     "--outtype",
                     outtype,  # quantization type
                 ]
+                if metadata_file:
+                    sys.argv.extend(["--metadata", metadata_file])
                 self.logger.info(
                     f"Running converter via module import with args: {' '.join(sys.argv[1:])}"
                 )
@@ -157,6 +179,8 @@ class GGUF(BaseQuantizer):
                 "--outtype",
                 outtype,
             ]
+            if metadata_file:
+                cmd.extend(["--metadata", metadata_file])
             self.logger.info(f"Running converter: {' '.join(cmd)}")
             run_command(self.logger, cmd)
 
@@ -196,32 +220,33 @@ class GGUF(BaseQuantizer):
             model: Union[str, Path],
             level: Union[str, QuantType, List[Union[str, QuantType]]] = QuantType.Q4_K_M,
             output_dir: Optional[Union[str, Path]] = None,
+            metadata: Optional[Dict[str, str]] = None,
             **kwargs
     ) -> Union[str, List[str]]:
         output_path = self._ensure_output_directory(output_dir)
         model_path = getattr(model, "name_or_path", str(model))
-        
+
         if isinstance(level, list):
             self.logger.info(f"Quantizing model: {self.model_id} to multiple levels: {level}")
-            # Convert HF to FP16 once
-            base_gguf = self._convert_hf(model_path, output_path, "f16")
-            
+            # Convert HF to FP16 once (with metadata overrides)
+            base_gguf = self._convert_hf(model_path, output_path, "f16", metadata=metadata)
+
             # Quantize to each level
             results = []
             for lvl in level:
                 lvl = self._validate_and_convert_level(lvl)
                 lvl_str = str(lvl)
-                
+
                 if lvl_str in self.CONVERT_OUTTYPES:
                     # Direct conversion (though unlikely for multiple levels)
-                    final = self._convert_hf(model_path, output_path, lvl_str)
+                    final = self._convert_hf(model_path, output_path, lvl_str, metadata=metadata)
                 else:
                     # Quantize from the base f16 GGUF
                     final = self._quantize_gguf(base_gguf, output_path, lvl_str)
-                
+
                 results.append(final)
                 self.logger.info(f"Quantization complete for {lvl}: {final}")
-            
+
             self.last_gguf = results  # Store all results for saving
             return results
         else:
@@ -233,10 +258,10 @@ class GGUF(BaseQuantizer):
 
             # If converter supports this outtype, do it directly
             if lvl in self.CONVERT_OUTTYPES:
-                final = self._convert_hf(model_path, output_path, lvl)
+                final = self._convert_hf(model_path, output_path, lvl, metadata=metadata)
             else:
-                # First convert to FP16
-                base = self._convert_hf(model_path, output_path, "f16")
+                # First convert to FP16 (with metadata overrides)
+                base = self._convert_hf(model_path, output_path, "f16", metadata=metadata)
                 # Then apply k-quant or i-quant
                 final = self._quantize_gguf(base, output_path, lvl)
 

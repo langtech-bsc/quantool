@@ -8,8 +8,8 @@ from transformers import HfArgumentParser
 from quantool import methods
 from quantool.args import (CalibrationArguments, CommonArguments,
                            EvaluationArguments, ExportArguments,
-                           LoggingArguments, ModelArguments,
-                           QuantizationArguments)
+                           LoggingArguments, MetadataArguments,
+                           ModelArguments, QuantizationArguments)
 from quantool.core.helpers import LoggerFactory, PipelineBase
 from quantool.core.helpers.calibration import CalibrationArtifact
 from quantool.core.registry import QuantizerRegistry
@@ -34,6 +34,7 @@ def main():
                 ExportArguments,
                 CommonArguments,
                 LoggingArguments,
+                MetadataArguments,
             )
         )
 
@@ -47,6 +48,7 @@ def main():
                 export_args,
                 common_args,
                 logging_args,
+                metadata_args,
             ) = parser.parse_yaml_file(sys.argv[1], allow_extra_keys=False)
             logger.info(f"Parsed arguments from YAML file: {sys.argv[1]}")
         else:
@@ -59,6 +61,7 @@ def main():
                 export_args,
                 common_args,
                 logging_args,
+                metadata_args,
             ) = parser.parse_args_into_dataclasses()
             logger.info("Parsed arguments from CLI.")
 
@@ -80,6 +83,7 @@ def main():
             "export_args": export_args,
             "common_args": common_args,
             "logging_args": logging_args,
+            "metadata_args": metadata_args,
         }
 
         logger.info("Starting quantization pipeline...")
@@ -337,6 +341,14 @@ def quantize_step(state):
                         extra_kwargs["num_calibration_samples"] = cargs.sample_size
                 elif getattr(cargs, "dataset_path", None):
                     extra_kwargs["dataset_path"] = cargs.dataset_path
+
+        # Build GGUF metadata overrides if provided
+        metadata_args = state.get("metadata_args")
+        if metadata_args is not None:
+            gguf_metadata = metadata_args.to_gguf_metadata()
+            if gguf_metadata:
+                extra_kwargs["metadata"] = gguf_metadata
+                logger.info(f"GGUF metadata overrides: {gguf_metadata}")
 
         logger.info(f"Quantization args: {qargs.quantization_config}")
         merged_kwargs = dict(qargs.quantization_config or {})

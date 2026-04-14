@@ -1,7 +1,9 @@
 from quantool.args.common_args import CommonArguments, LoggingArguments
 from quantool.args.quantization_args import (CalibrationArguments,
                                              EvaluationArguments,
-                                             ExportArguments, ModelArguments,
+                                             ExportArguments,
+                                             MetadataArguments,
+                                             ModelArguments,
                                              QuantizationArguments)
 
 __all__ = [
@@ -12,4 +14,5 @@ __all__ = [
     "QuantizationArguments",
     "EvaluationArguments",
     "ExportArguments",
+    "MetadataArguments",
 ]

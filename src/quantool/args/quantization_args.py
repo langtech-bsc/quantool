@@ -61,6 +61,45 @@ class QuantizationArguments:
 
 
 @dataclass
+class MetadataArguments:
+    """
+    GGUF metadata fields to override in the output file.
+    These are passed to convert_hf_to_gguf.py via --metadata JSON file.
+    """
+
+    general_name: Optional[str] = field(
+        default=None,
+        metadata={"help": "Override the 'general.name' GGUF metadata field."},
+    )
+    general_basename: Optional[str] = field(
+        default=None,
+        metadata={"help": "Override the 'general.basename' GGUF metadata field."},
+    )
+    general_finetune: Optional[str] = field(
+        default=None,
+        metadata={"help": "Override the 'general.finetune' GGUF metadata field."},
+    )
+    general_version: Optional[str] = field(
+        default=None,
+        metadata={"help": "Override the 'general.version' GGUF metadata field."},
+    )
+
+    def to_gguf_metadata(self) -> dict:
+        """Convert non-None fields to a GGUF metadata dict with dotted keys."""
+        mapping = {
+            "general_name": "general.name",
+            "general_basename": "general.basename",
+            "general_finetune": "general.finetune",
+            "general_version": "general.version",
+        }
+        return {
+            gguf_key: getattr(self, attr)
+            for attr, gguf_key in mapping.items()
+            if getattr(self, attr) is not None
+        }
+
+
+@dataclass
 class EvaluationArguments:
     """
     Arguments for model evaluation.
