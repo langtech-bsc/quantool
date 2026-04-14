@@ -1,6 +1,6 @@
 [project]
 name="quantool"
-version = "0.2.0"                             # Project version
+version = "0.2.2-alpha"                             # Project version
 description = "A unified, plugin-based quantization toolkit for LLMs"
 readme = "README.md"                          # Path to long-form project description
 requires-python = ">=3.8,<3.12"              # Minimum Python support
